@@ -1,4 +1,15 @@
-export type Buffer = {el: HTMLCanvasElement; context: CanvasRenderingContext2D};
+export type Buffer = {
+  el: HTMLCanvasElement,
+  context: CanvasRenderingContext2D
+};
+
+function bufferWidth(buffer: Buffer) {
+  return buffer.el.width
+}
+
+function bufferHeight(buffer: Buffer) {
+  return buffer.el.height
+}
 
 export function setupBuffer(el: HTMLCanvasElement, width: number, height: number): Buffer {
   el.width = width
@@ -27,6 +38,14 @@ export function createBuffer(width: number, height: number): Buffer {
   }
 }
 
-export function drawBufferOn(sourceBuffer: Buffer, destBuffer: Buffer) {
+export function drawBuffer(sourceBuffer: Buffer, destBuffer: Buffer) {
   sourceBuffer.context.drawImage(destBuffer.el, 0, 0);
+}
+
+export function drawRect(buffer: Buffer, color: string, x0, y0, x1, y1): Sprite {
+  let w = x1 - x0
+  let h = y1 - y0
+
+  buffer.context.fillStyle = color
+  buffer.context.fillRect(x0, bufferHeight(buffer) - y0 - h, w, h)
 }
