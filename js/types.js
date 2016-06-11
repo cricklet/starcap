@@ -1,12 +1,22 @@
+export let CrewEnum = {
+  ENG: 'eng',
+  SEC: 'sec'
+}
 
-export type CrewType =
-  | 'Engineering'
-  | 'Security'
+type CrewEnumType = // yeah yeah, DRY :(
+  | 'eng'
+  | 'sec'
 
-export type RoomType =
-  | 'Bridge'
-  | 'Engine'
-  | 'Store'
+export let RoomEnum = {
+  BRIDGE: 'bridge',
+  ENGINE: 'engine',
+  STORE: 'store'
+}
+
+type RoomEnumType =
+  | 'bridge'
+  | 'engine'
+  | 'store'
 
 export type Player = {
   x: number,
@@ -15,18 +25,18 @@ export type Player = {
 }
 
 export type CrewMember = {
-  type: CrewType,
+  type: CrewEnumType,
   x: number,
   y: number,
   roomIndex: number
 }
 
 export type Room = {
-  type: RoomType
+  type: RoomEnumType
 }
 
 export type GameState = {
-  player: PlayerType,
+  player: Player,
   crew: Array<CrewMember>,
   rooms: Array<Room>
 }

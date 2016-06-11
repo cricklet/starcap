@@ -1,7 +1,7 @@
 import * as Canvas from './canvas'
-import {
-  CrewType,
-  RoomType,
+import type {
+  CrewEnum,
+  RoomEnum,
   Player,
   CrewMember,
   Room,
@@ -18,15 +18,15 @@ let INITIAL_STATE: GameState = {
   },
   crew: [
     {
-      x: 0.7, y: 0, roomIndex: 0, type: CrewType.Engineering
+      x: 0.7, y: 0, roomIndex: 0, type: CrewEnum.ENG
     },
     {
-      x: 0.7, y: 0, roomIndex: 1, type: CrewType.Security
+      x: 0.7, y: 0, roomIndex: 1, type: CrewEnum.SEC
     }
   ],
   rooms: [
     {
-      type: RoomType.Bridge
+      type: RoomEnum.BRIDGE
     }
   ]
 }
