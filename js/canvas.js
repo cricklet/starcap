@@ -1,13 +1,32 @@
+export type Buffer = {el: HTMLCanvasElement; context: CanvasRenderingContext2D};
 
-export type Buffer = {buffer: string; context: boolean};
+export function setupBuffer(el: HTMLCanvasElement, width: number, height: number): Buffer {
+  el.width = width
+  el.height = height
 
-export function createBuffer(width: number, height: number) {
-  let buffer = document.createElement('canvas');
-  buffer.width  = width;
-  buffer.height = height;
-  return buffer;
+  let context = el.getContext('2d')
+  context.imageSmoothingEnabled = false
+
+  return {
+    el: el,
+    context: context
+  }
 }
 
-export function drawBuffer(context, buffer) {
-  context.drawImage(buffer, 0, 0);
+export function createBuffer(width: number, height: number): Buffer {
+  let el = document.createElement('canvas');
+  el.width  = width;
+  el.height = height;
+
+  let context = el.getContext('2d')
+  context.imageSmoothingEnabled = false
+
+  return {
+    el: el,
+    context: context
+  }
+}
+
+export function drawBufferOn(sourceBuffer: Buffer, destBuffer: Buffer) {
+  sourceBuffer.context.drawImage(destBuffer.el, 0, 0);
 }

@@ -1,3 +1,6 @@
+////////////////////////////////////////////////////////////
+// Game state types
+
 export let CrewEnum = {
   ENG: 'eng',
   SEC: 'sec'

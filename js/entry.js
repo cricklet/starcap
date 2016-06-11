@@ -8,8 +8,24 @@ import type {
   GameState
 } from './types.js'
 
+
+// Let's think about dimensions.
+// The player's height should be 1 unit.
+// The world itself should be, let's say, 6 units by 3 units
+// 0,0 is bottom left & 1,1 is top right
+
+let PLAYER_HEIGHT = 1
+let PLAYER_WIDTH = 0.6
+let ROOM_WIDTH = 8
+let ROOM_HEIGHT = 2.5
+
+let UNITS_TO_PIXELS = 75
+let CANVAS_WIDTH = UNITS_TO_PIXELS * ROOM_WIDTH
+let CANVAS_HEIGHT = UNITS_TO_PIXELS * ROOM_HEIGHT
+let CANVAS_PLAYER_HEIGHT = UNITS_TO_PIXELS * PLAYER_HEIGHT
+
 let player: Player = {
-  x: 0.5, y: 0, roomIndex: 0
+  x: 3, y: 0, roomIndex: 0
 }
 
 let INITIAL_STATE: GameState = {
@@ -31,18 +47,28 @@ let INITIAL_STATE: GameState = {
   ]
 }
 
+export type Sprite = {
+  image: string,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number
+}
+
+export function renderPlayer(player: Player): Sprite {
+  return {
+    image: 'player.png',
+    x0: player.x - PLAYER_WIDTH * 0.5,
+    x1: player.x + PLAYER_WIDTH * 0.5,
+    y0: player.y,
+    y1: player.y + PLAYER_HEIGHT
+  }
+}
+
 $(document).ready(() => {
-  let CANVAS_WIDTH = 600
-  let CANVAS_HEIGHT = 200
+  let screenEl = $('#world-canvas')[0]
+  let screen: Canvas.Buffer = Canvas.setupBuffer(screenEl, CANVAS_WIDTH, CANVAS_HEIGHT)
+  let buffer: Canvas.Buffer = Canvas.createBuffer(CANVAS_WIDTH, CANVAS_HEIGHT)
 
-  let canvas = $('#world-canvas')[0]
-
-  let canvasContext = canvas.getContext('2d')
-  canvasContext.imageSmoothingEnabled = false
-
-  canvas.width = CANVAS_WIDTH
-  canvas.height = CANVAS_HEIGHT
-
-  var buffer = Canvas.createBuffer(canvas.width, canvas.height)
-
+  let playerSprite: Sprite = renderPlayer(player)
 })
