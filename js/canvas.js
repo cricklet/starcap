@@ -42,6 +42,11 @@ export function drawBuffer(sourceBuffer: Buffer, destBuffer: Buffer) {
   sourceBuffer.context.drawImage(destBuffer.el, 0, 0);
 }
 
+export function drawBackground(buffer: Buffer, color: string) {
+  buffer.context.fillStyle = color
+  buffer.context.fillRect(0, 0, bufferWidth(buffer), bufferHeight(buffer))
+}
+
 export function drawRect(buffer: Buffer, color: string, x0, y0, x1, y1): Sprite {
   let w = x1 - x0
   let h = y1 - y0

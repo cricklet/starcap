@@ -8,11 +8,8 @@ import type {
   GameState
 } from './types.js'
 
-
-// Let's think about dimensions.
-// The player's height should be 1 unit.
-// The world itself should be, let's say, 6 units by 3 units
-// 0,0 is bottom left & 1,1 is top right
+let FPS = 60.0;
+let DT = 1.0 / FPS;
 
 let PLAYER_HEIGHT = 1
 let PLAYER_WIDTH = 0.8
@@ -26,27 +23,25 @@ let CANVAS_WIDTH = unitsToPixels(ROOM_WIDTH)
 let CANVAS_HEIGHT = unitsToPixels(ROOM_HEIGHT)
 let CANVAS_PLAYER_HEIGHT = unitsToPixels(PLAYER_HEIGHT)
 
-let player: Player = {
-  x: 3, y: 0, roomIndex: 0
-}
-
-let INITIAL_STATE: GameState = {
-  player: {
-    x: 0.5, y: 0, roomIndex: 0
-  },
-  crew: [
-    {
-      x: 0.7, y: 0, roomIndex: 0, type: CrewEnum.ENG
+function initialGameState(): GameState {
+  return {
+    player: {
+      x: 3, y: 0, roomIndex: 0
     },
-    {
-      x: 0.7, y: 0, roomIndex: 1, type: CrewEnum.SEC
-    }
-  ],
-  rooms: [
-    {
-      type: RoomEnum.BRIDGE
-    }
-  ]
+    crew: [
+      {
+        x: 0.7, y: 0, roomIndex: 0, type: CrewEnum.ENG
+      },
+      {
+        x: 0.7, y: 0, roomIndex: 1, type: CrewEnum.SEC
+      }
+    ],
+    rooms: [
+      {
+        type: RoomEnum.BRIDGE
+      }
+    ]
+  }
 }
 
 type Sprite = {
@@ -67,18 +62,100 @@ function renderPlayer(player: Player): Sprite {
   }
 }
 
+let PLAYER_SPEED = 4;
+
+function thinkPlayer(player: Player, inputs: Inputs, dt: number): { x: number } {
+  if (Math.random() < 0.01) console.log(inputs);
+  var vx = 0;
+  var vy = 0;
+  if (inputs.a) vx -= 1;
+  if (inputs.d) vx += 1;
+
+  let dPlayer = { x: player.x + vx * dt * PLAYER_SPEED }
+  return dPlayer
+}
+
+type Inputs = {[key: String]: boolean}
+
+let KEY_CODE_TO_CHAR = {
+  37: 'a',
+  38: 'w',
+  39: 'd',
+  40: 's',
+  189: '-',
+  187: '=',
+  32: ' ',
+  13: 'x'
+}
+function getChar(e: $.Event) {
+  if (e.keyCode >= 48 && e.keyCode <= 90)
+    return String.fromCharCode(e.keyCode).toLowerCase();
+
+  if (e.keyCode in KEY_CODE_TO_CHAR)
+    return KEY_CODE_TO_CHAR[e.keyCode];
+
+  return null;
+}
+
+function bindInputs (inputs: Inputs) {
+  $(document).keydown(function (e) {
+    var key = getChar(e);
+    if (key) inputs[key] = true;
+  });
+  $(document).keyup(function (e) {
+    var key = getChar(e);
+    if (key) inputs[key] = false;
+  });
+}
+
+function runLoop(step: () => number) {
+  var lastTime = Date.now();
+  var frameCount = 0;
+  var frameStart = Date.now();
+
+  function loop () {
+    // calculate FPS
+    frameCount += 1;
+    if (Date.now() > frameStart + 1000) {
+      console.log(frameCount + " fps");
+      frameCount = 0;
+      frameStart = Date.now();
+    }
+
+    let dt = step();
+    setTimeout(loop, 1000 * dt);
+  };
+
+  loop();
+}
+
 $(document).ready(() => {
+  let inputs = {};
+  bindInputs(inputs)
+
   let screenEl = $('#world-canvas')[0]
   let screen: Canvas.Buffer = Canvas.setupBuffer(screenEl, CANVAS_WIDTH, CANVAS_HEIGHT)
   let buffer: Canvas.Buffer = Canvas.createBuffer(CANVAS_WIDTH, CANVAS_HEIGHT)
 
-  let playerSprite: Sprite = renderPlayer(player)
-  Canvas.drawRect(buffer,
-    playerSprite.color,
-    unitsToPixels(playerSprite.x0),
-    unitsToPixels(playerSprite.y0),
-    unitsToPixels(playerSprite.x1),
-    unitsToPixels(playerSprite.y1))
+  let gameState = initialGameState()
 
-  Canvas.drawBuffer(screen, buffer)
+  let step = () => {
+    let dPlayer = thinkPlayer(gameState.player, inputs, DT)
+    Object.assign(gameState.player, dPlayer)
+
+    Canvas.drawBackground(buffer, '#eee')
+
+    let playerSprite: Sprite = renderPlayer(gameState.player)
+    Canvas.drawRect(buffer,
+      playerSprite.color,
+      unitsToPixels(playerSprite.x0),
+      unitsToPixels(playerSprite.y0),
+      unitsToPixels(playerSprite.x1),
+      unitsToPixels(playerSprite.y1))
+
+    Canvas.drawBuffer(screen, buffer)
+    return DT;
+  }
+
+  runLoop(step)
 })
