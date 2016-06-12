@@ -45,6 +45,12 @@ function initialGameState(): GameState {
     rooms: [
       {
         type: RoomEnum.BRIDGE
+      },
+      {
+        type: RoomEnum.ENGINE
+      },
+      {
+        type: RoomEnum.STORE
       }
     ]
   }
@@ -68,6 +74,13 @@ function renderPlayer(player: Player): Sprite {
   }
 }
 
+function computeRoomColor(room: Room): string {
+  if (room.type == RoomEnum.BRIDGE) return '#eee'
+  if (room.type == RoomEnum.ENGINE) return '#fee'
+  if (room.type == RoomEnum.STORE) return '#efe'
+  throw "Unknown room"
+}
+
 let PLAYER_SPEED = 4;
 
 function thinkPlayer(player: Player, inputs: Inputs, dt: number): { x: number } {
@@ -77,6 +90,23 @@ function thinkPlayer(player: Player, inputs: Inputs, dt: number): { x: number } 
   if (inputs.d) vx += 1;
 
   return {x: player.x + vx * dt * PLAYER_SPEED}
+}
+
+function adjustRoom(character: {x: number, y: number, roomIndex: number}): { x?: number, roomIndex?: number } {
+  if (character.x < 0)
+    return { x: ROOM_WIDTH, roomIndex: character.roomIndex - 1 }
+
+  if (character.x > ROOM_WIDTH)
+    return { x: 0, roomIndex: character.roomIndex + 1 }
+
+  return {}
+}
+
+function clampRoom(character: {roomIndex: number}, numRooms: number): {roomIndex?: number} {
+  let modRoom = character.roomIndex % numRooms
+  return {
+    roomIndex: modRoom >= 0 ? modRoom : modRoom + numRooms
+  }
 }
 
 type Inputs = {[key: string]: boolean}
@@ -144,10 +174,12 @@ $(document).ready(() => {
   let gameState = initialGameState()
 
   let step = () => {
-    let dPlayer = thinkPlayer(gameState.player, inputs, DT)
-    Object.assign(gameState.player, dPlayer)
+    Object.assign(gameState.player, thinkPlayer(gameState.player, inputs, DT))
+    Object.assign(gameState.player, adjustRoom(gameState.player))
+    Object.assign(gameState.player, clampRoom(gameState.player, gameState.rooms.length))
 
-    Canvas.drawBackground(buffer, '#eee')
+    Canvas.drawBackground(buffer,
+      computeRoomColor(gameState.rooms[gameState.player.roomIndex]))
 
     let playerSprite: Sprite = renderPlayer(gameState.player)
     Canvas.drawRect(buffer,

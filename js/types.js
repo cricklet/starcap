@@ -36,6 +36,8 @@ export type CrewMember = {
   roomIndex: number
 }
 
+export type Character = Player | CrewMember
+
 export type Room = {
   type: RoomEnumType
 }
