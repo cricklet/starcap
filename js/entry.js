@@ -1,12 +1,18 @@
+/* @flow */
+
 import * as Canvas from './canvas'
-import type {
+
+import {
   CrewEnum,
-  RoomEnum,
+  RoomEnum
+} from './types'
+
+import type {
   Player,
   CrewMember,
   Room,
   GameState
-} from './types.js'
+} from './types'
 
 let FPS = 60.0;
 let DT = 1.0 / FPS;
@@ -65,27 +71,25 @@ function renderPlayer(player: Player): Sprite {
 let PLAYER_SPEED = 4;
 
 function thinkPlayer(player: Player, inputs: Inputs, dt: number): { x: number } {
-  if (Math.random() < 0.01) console.log(inputs);
-  var vx = 0;
-  var vy = 0;
+  let vx = 0;
+  let vy = 0;
   if (inputs.a) vx -= 1;
   if (inputs.d) vx += 1;
 
-  let dPlayer = { x: player.x + vx * dt * PLAYER_SPEED }
-  return dPlayer
+  return {x: player.x + vx * dt * PLAYER_SPEED}
 }
 
-type Inputs = {[key: String]: boolean}
+type Inputs = {[key: string]: boolean}
 
 let KEY_CODE_TO_CHAR = {
-  37: 'a',
-  38: 'w',
-  39: 'd',
-  40: 's',
-  189: '-',
-  187: '=',
-  32: ' ',
-  13: 'x'
+  '37': 'a',
+  '38': 'w',
+  '39': 'd',
+  '40': 's',
+  '189': '-',
+  '187': '=',
+  '32': ' ',
+  '13': 'x'
 }
 function getChar(e: $.Event) {
   if (e.keyCode >= 48 && e.keyCode <= 90)
