@@ -5,11 +5,13 @@
 
 export let CrewEnum = {
   ENG: 'eng',
+  SCI: 'sci',
   SEC: 'sec'
 }
 
 type CrewEnumType = // yeah yeah, DRY :(
   | 'eng'
+  | 'sci'
   | 'sec'
 
 export let RoomEnum = {
@@ -26,6 +28,8 @@ type RoomEnumType =
 export type Player = {
   x: number,
   y: number,
+  vx: number,
+  vy: number,
   roomIndex: number
 }
 
@@ -33,6 +37,8 @@ export type CrewMember = {
   type: CrewEnumType,
   x: number,
   y: number,
+  vx: number,
+  vy: number,
   roomIndex: number
 }
 

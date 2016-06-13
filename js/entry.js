@@ -22,24 +22,38 @@ let PLAYER_WIDTH = 0.8
 let ROOM_WIDTH = 8
 let ROOM_HEIGHT = 2.5
 
-function unitsToPixels(units) {return units * 75}
-function pixelsToUnits(pixels) {return pixels / 75.0}
+function transformToPixels(units) {return units * 75}
+function transformToUnits(pixels) {return pixels / 75.0}
 
-let CANVAS_WIDTH = unitsToPixels(ROOM_WIDTH)
-let CANVAS_HEIGHT = unitsToPixels(ROOM_HEIGHT)
-let CANVAS_PLAYER_HEIGHT = unitsToPixels(PLAYER_HEIGHT)
+let CANVAS_WIDTH = transformToPixels(ROOM_WIDTH)
+let CANVAS_HEIGHT = transformToPixels(ROOM_HEIGHT)
+let CANVAS_PLAYER_HEIGHT = transformToPixels(PLAYER_HEIGHT)
 
 function initialGameState(): GameState {
   return {
     player: {
-      x: 3, y: 0, roomIndex: 0
+      id: Math.random(),
+      x: 3, y: 0, vx: 0, vy: 0,
+      roomIndex: 0
     },
     crew: [
       {
-        x: 0.7, y: 0, roomIndex: 0, type: CrewEnum.ENG
+        id: Math.random(),
+        x: 5, y: 0, vx: 0, vy: 0,
+        roomIndex: 1,
+        type: CrewEnum.ENG
       },
       {
-        x: 0.7, y: 0, roomIndex: 1, type: CrewEnum.SEC
+        id: Math.random(),
+        x: 2, y: 0, vx: 0, vy: 0,
+        roomIndex: 2,
+        type: CrewEnum.SEC
+      },
+      {
+        id: Math.random(),
+        x: 4, y: 0, vx: 0, vy: 0,
+        roomIndex: 2,
+        type: CrewEnum.SCI
       }
     ],
     rooms: [
@@ -64,13 +78,40 @@ type Sprite = {
   y1: number
 }
 
+function transformRectToPixels(rect: {x0:number, y0:number, x1:number, y1:number})
+: {x0:number, y0:number, x1:number, y1:number} {
+  return {
+    x0: transformToPixels(rect.x0),
+    y0: transformToPixels(rect.y0),
+    x1: transformToPixels(rect.x1),
+    y1: transformToPixels(rect.y1)
+  }
+}
+
 function renderPlayer(player: Player): Sprite {
   return {
-    color: '#f3e2d3',
+    color: 'rgb(154, 205, 50)',
     x0: player.x - PLAYER_WIDTH * 0.5,
     x1: player.x + PLAYER_WIDTH * 0.5,
     y0: player.y,
     y1: player.y + PLAYER_HEIGHT
+  }
+}
+
+function crewMemberColor(crew: CrewMember): string {
+  if (crew.type === CrewEnum.ENG) return 'rgb(223, 208, 0)'
+  if (crew.type === CrewEnum.SCI) return 'rgb(49, 61, 172)'
+  if (crew.type === CrewEnum.SEC) return 'rgb(223, 0, 0)'
+  throw "Unknown crew type"
+}
+
+function renderCrewMember(crew: CrewMember): Sprite {
+  return {
+    color: crewMemberColor(crew),
+    x0: crew.x - PLAYER_WIDTH * 0.5,
+    x1: crew.x + PLAYER_WIDTH * 0.5,
+    y0: crew.y,
+    y1: crew.y + PLAYER_HEIGHT
   }
 }
 
@@ -82,14 +123,43 @@ function computeRoomColor(room: Room): string {
 }
 
 let PLAYER_SPEED = 4;
+let PLAYER_JUMP_SPEED = 6;
+let GRAVITY_ACCEL = 20;
 
-function thinkPlayer(player: Player, inputs: Inputs, dt: number): { x: number } {
+function walkPlayer(player: Player, inputs: Inputs): { vx: number } {
   let vx = 0;
-  let vy = 0;
-  if (inputs.a) vx -= 1;
-  if (inputs.d) vx += 1;
+  if (inputs.a) vx -= PLAYER_SPEED;
+  if (inputs.d) vx += PLAYER_SPEED;
 
-  return {x: player.x + vx * dt * PLAYER_SPEED}
+  return {
+    vx: vx
+  }
+}
+
+function canJump(character: {y: number, vy: number}): boolean {
+  return character.y <= 0.001 && character.vy <= 0.001
+}
+
+function jumpPlayer(player: Player, inputs: Inputs, canJump: boolean): { vy?: number } {
+  if (!canJump || !inputs.w)
+    return {};
+
+  return { vy: PLAYER_JUMP_SPEED }
+}
+
+function movePlayer(character: {x: number, y: number, vx: number, vy: number}, dt: number)
+: {x?: number, y?: number} {
+  return {
+    x: character.x + character.vx * dt,
+    y: character.y + character.vy * dt
+  }
+}
+
+function thinkGravity(character: {y: number, vy: number}, dt: number): { vy?: number } {
+  if (character.y > 0.001)
+    return { vy: character.vy - GRAVITY_ACCEL * dt }
+
+  return {}
 }
 
 function adjustRoom(character: {x: number, y: number, roomIndex: number}): { x?: number, roomIndex?: number } {
@@ -107,6 +177,13 @@ function clampRoom(character: {roomIndex: number}, numRooms: number): {roomIndex
   return {
     roomIndex: modRoom >= 0 ? modRoom : modRoom + numRooms
   }
+}
+
+function clampFloor(character: {y: number, vy: number}): {y?: number, vy?: number} {
+  if (character.y < 0.001 && character.vy < 0)
+    return { y: 0, vy: 0 }
+
+  return {}
 }
 
 type Inputs = {[key: string]: boolean}
@@ -174,20 +251,38 @@ $(document).ready(() => {
   let gameState = initialGameState()
 
   let step = () => {
-    Object.assign(gameState.player, thinkPlayer(gameState.player, inputs, DT))
-    Object.assign(gameState.player, adjustRoom(gameState.player))
-    Object.assign(gameState.player, clampRoom(gameState.player, gameState.rooms.length))
+    let player = gameState.player
+    let rooms = gameState.rooms
+    Object.assign(player, walkPlayer(player, inputs))
+    Object.assign(player, jumpPlayer(player, inputs, canJump(player)))
+    Object.assign(player, movePlayer(player, DT))
+    Object.assign(player, thinkGravity(player, DT))
+    Object.assign(player, adjustRoom(player))
+    Object.assign(player, clampRoom(player, rooms.length))
+    Object.assign(player, clampFloor(player, rooms.length))
+
+    for (let crewMember of gameState.crew) {
+      let rooms = gameState.rooms
+      Object.assign(crewMember, movePlayer(crewMember, DT))
+      Object.assign(crewMember, thinkGravity(crewMember, DT))
+      Object.assign(crewMember, adjustRoom(crewMember))
+      Object.assign(crewMember, clampRoom(crewMember, rooms.length))
+      Object.assign(crewMember, clampFloor(crewMember, rooms.length))
+    }
 
     Canvas.drawBackground(buffer,
-      computeRoomColor(gameState.rooms[gameState.player.roomIndex]))
+      computeRoomColor(gameState.rooms[player.roomIndex]))
 
-    let playerSprite: Sprite = renderPlayer(gameState.player)
-    Canvas.drawRect(buffer,
-      playerSprite.color,
-      unitsToPixels(playerSprite.x0),
-      unitsToPixels(playerSprite.y0),
-      unitsToPixels(playerSprite.x1),
-      unitsToPixels(playerSprite.y1))
+    let sprites = [];
+    for (let crewMember of gameState.crew) {
+      if (crewMember.roomIndex === player.roomIndex)
+        sprites.push(renderCrewMember(crewMember))
+    }
+    sprites.push(renderPlayer(player))
+
+    for (let sprite of sprites) {
+      Canvas.drawRect(buffer, sprite.color, transformRectToPixels(sprite))
+    }
 
     Canvas.drawBuffer(screen, buffer)
     return DT;

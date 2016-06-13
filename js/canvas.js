@@ -1,3 +1,5 @@
+/* @flow */
+
 export type Buffer = {
   el: HTMLCanvasElement,
   context: CanvasRenderingContext2D
@@ -16,6 +18,9 @@ export function setupBuffer(el: HTMLCanvasElement, width: number, height: number
   el.height = height
 
   let context = el.getContext('2d')
+  if (!(context instanceof CanvasRenderingContext2D)) {
+    throw "Unable to get canvas context."
+  }
   context.imageSmoothingEnabled = false
 
   return {
@@ -26,6 +31,9 @@ export function setupBuffer(el: HTMLCanvasElement, width: number, height: number
 
 export function createBuffer(width: number, height: number): Buffer {
   let el = document.createElement('canvas');
+  if (!(el instanceof HTMLCanvasElement)) {
+    throw "Unable to create buffer."
+  }
   el.width  = width;
   el.height = height;
 
@@ -47,10 +55,14 @@ export function drawBackground(buffer: Buffer, color: string) {
   buffer.context.fillRect(0, 0, bufferWidth(buffer), bufferHeight(buffer))
 }
 
-export function drawRect(buffer: Buffer, color: string, x0, y0, x1, y1): Sprite {
-  let w = x1 - x0
-  let h = y1 - y0
+export function drawRect(
+  buffer: Buffer,
+  color: string,
+  rect: {x0:number, y0:number, x1:number, y1:number}
+) {
+  let w = rect.x1 - rect.x0
+  let h = rect.y1 - rect.y0
 
   buffer.context.fillStyle = color
-  buffer.context.fillRect(x0, bufferHeight(buffer) - y0 - h, w, h)
+  buffer.context.fillRect(rect.x0, bufferHeight(buffer) - rect.y0 - h, w, h)
 }
