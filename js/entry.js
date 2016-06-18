@@ -4,14 +4,16 @@ import * as Canvas from './canvas'
 
 import {
   CrewEnum,
-  RoomEnum
+  RoomEnum,
+  ActionEnum
 } from './types'
 
 import type {
   Player,
   CrewMember,
   Room,
-  GameState
+  GameState,
+  Action
 } from './types'
 
 let FPS = 60.0;
@@ -29,29 +31,39 @@ let CANVAS_WIDTH = transformToPixels(ROOM_WIDTH)
 let CANVAS_HEIGHT = transformToPixels(ROOM_HEIGHT)
 let CANVAS_PLAYER_HEIGHT = transformToPixels(PLAYER_HEIGHT)
 
+function genId(): string {return Math.random().toString().substring(2, 6)}
+
 function initialGameState(): GameState {
   return {
     player: {
-      id: Math.random(),
-      x: 3, y: 0, vx: 0, vy: 0,
+      id: genId(),
+      x: 3, y: 0, vx: 0, vy: 0, ax: 0, ay: 0,
+      width: PLAYER_WIDTH,
+      height: PLAYER_HEIGHT,
       roomIndex: 0
     },
     crew: [
       {
-        id: Math.random(),
-        x: 5, y: 0, vx: 0, vy: 0,
+        id: genId(),
+        x: 5, y: 0, vx: 0, vy: 0, ax: 0, ay: 0,
+        width: PLAYER_WIDTH,
+        height: PLAYER_HEIGHT,
         roomIndex: 1,
         type: CrewEnum.ENG
       },
       {
-        id: Math.random(),
-        x: 2, y: 0, vx: 0, vy: 0,
+        id: genId(),
+        x: 2, y: 0, vx: 0, vy: 0, ax: 0, ay: 0,
+        width: PLAYER_WIDTH,
+        height: PLAYER_HEIGHT,
         roomIndex: 2,
         type: CrewEnum.SEC
       },
       {
-        id: Math.random(),
-        x: 4, y: 0, vx: 0, vy: 0,
+        id: genId(),
+        x: 4, y: 0, vx: 0, vy: 0, ax: 0, ay: 0,
+        width: PLAYER_WIDTH,
+        height: PLAYER_HEIGHT,
         roomIndex: 2,
         type: CrewEnum.SCI
       }
@@ -88,6 +100,13 @@ function transformRectToPixels(rect: {x0:number, y0:number, x1:number, y1:number
   }
 }
 
+function crewMemberColor(crew: CrewMember): string {
+  if (crew.type === CrewEnum.ENG) return 'rgb(223, 208, 0)'
+  if (crew.type === CrewEnum.SCI) return 'rgb(49, 61, 172)'
+  if (crew.type === CrewEnum.SEC) return 'rgb(223, 0, 0)'
+  throw "Unknown crew type"
+}
+
 function renderPlayer(player: Player): Sprite {
   return {
     color: 'rgb(154, 205, 50)',
@@ -96,13 +115,6 @@ function renderPlayer(player: Player): Sprite {
     y0: player.y,
     y1: player.y + PLAYER_HEIGHT
   }
-}
-
-function crewMemberColor(crew: CrewMember): string {
-  if (crew.type === CrewEnum.ENG) return 'rgb(223, 208, 0)'
-  if (crew.type === CrewEnum.SCI) return 'rgb(49, 61, 172)'
-  if (crew.type === CrewEnum.SEC) return 'rgb(223, 0, 0)'
-  throw "Unknown crew type"
 }
 
 function renderCrewMember(crew: CrewMember): Sprite {
@@ -122,44 +134,84 @@ function computeRoomColor(room: Room): string {
   throw "Unknown room"
 }
 
-let PLAYER_SPEED = 4;
-let PLAYER_JUMP_SPEED = 6;
-let GRAVITY_ACCEL = 20;
+let PLAYER_SPEED = 8;
+let PLAYER_ACCEL = 80;
+let PLAYER_JUMP_SPEED = 7;
+let GRAVITY_ACCEL = 40;
 
-function walkPlayer(player: Player, inputs: Inputs): { vx: number } {
-  let vx = 0;
-  if (inputs.a) vx -= PLAYER_SPEED;
-  if (inputs.d) vx += PLAYER_SPEED;
+function thinkPlayer(inputs: Inputs, canJump: boolean): Set<Action> {
+  let actions: Set<Action> = new Set()
 
-  return {
-    vx: vx
-  }
+  if (inputs.a) actions.add(ActionEnum.LEFT)
+  if (inputs.d) actions.add(ActionEnum.RIGHT)
+  if (canJump && inputs.w) actions.add(ActionEnum.JUMP)
+
+  return actions
 }
 
-function canJump(character: {y: number, vy: number}): boolean {
+function isGrounded(character: {y: number, vy: number}): boolean {
   return character.y <= 0.001 && character.vy <= 0.001
 }
 
-function jumpPlayer(player: Player, inputs: Inputs, canJump: boolean): { vy?: number } {
-  if (!canJump || !inputs.w)
-    return {};
-
-  return { vy: PLAYER_JUMP_SPEED }
+function canJump(character: {y: number, vy: number}): boolean {
+  return isGrounded(character)
 }
 
-function movePlayer(character: {x: number, y: number, vx: number, vy: number}, dt: number)
+function horizontalCharacterPhysics(
+  character: { vx: number }, actions: Set<Action>, isGrounded: boolean
+): { ax: number, vx?: number } {
+  let dplayer = {}
+  dplayer.ax = 0
+
+  let left  = actions.has(ActionEnum.LEFT)
+  let right = actions.has(ActionEnum.RIGHT)
+
+  let maxVelocity = Math.abs(character.vx) > PLAYER_SPEED
+  let movingRight = character.vx >   0.01
+  let movingLeft  = character.vx < - 0.01
+  let maxRight = movingRight && maxVelocity
+  let maxLeft  = movingLeft  && maxVelocity
+
+  if (left && !right && !maxLeft ) dplayer.ax = - PLAYER_ACCEL // move left
+  if (right && !left && !maxRight) dplayer.ax =   PLAYER_ACCEL // move right
+
+  if ((left === right) && isGrounded) { // skid to a stop
+    if (movingRight) dplayer.ax = - PLAYER_ACCEL
+    if (movingLeft)  dplayer.ax =   PLAYER_ACCEL
+  }
+
+  if (isGrounded && maxVelocity) { // terminal velocity on ground
+    if (movingRight) dplayer.vx =   PLAYER_SPEED
+    if (movingLeft)  dplayer.vx = - PLAYER_SPEED
+  }
+
+  return dplayer
+}
+
+function verticalCharacterPhysics(isGrounded: boolean, actions: Set<Action>): { ay: number, vy?: number } {
+  let dplayer = {}
+  dplayer.ay = 0
+
+  if (actions.has(ActionEnum.JUMP)) dplayer.vy = PLAYER_JUMP_SPEED
+  if (!isGrounded) dplayer.ay = - GRAVITY_ACCEL
+
+  return dplayer
+}
+
+function performAccel(character: {vx: number, vy: number, ax: number, ay: number}, dt: number)
+: {vx?: number, vy?: number} {
+  return {
+    vx: character.vx + character.ax * dt,
+    vy: character.vy + character.ay * dt
+  }
+}
+
+function performVelocity(character: {x: number, y: number, vx: number, vy: number}, dt: number)
 : {x?: number, y?: number} {
   return {
     x: character.x + character.vx * dt,
     y: character.y + character.vy * dt
   }
-}
-
-function thinkGravity(character: {y: number, vy: number}, dt: number): { vy?: number } {
-  if (character.y > 0.001)
-    return { vy: character.vy - GRAVITY_ACCEL * dt }
-
-  return {}
 }
 
 function adjustRoom(character: {x: number, y: number, roomIndex: number}): { x?: number, roomIndex?: number } {
@@ -240,6 +292,14 @@ function runLoop(step: () => number) {
   loop();
 }
 
+function * allCharacters(gameState: GameState) {
+  for (let crewMember of gameState.crew) {
+    yield crewMember
+  }
+
+  yield gameState.player
+}
+
 $(document).ready(() => {
   let inputs = {};
   bindInputs(inputs)
@@ -253,21 +313,19 @@ $(document).ready(() => {
   let step = () => {
     let player = gameState.player
     let rooms = gameState.rooms
-    Object.assign(player, walkPlayer(player, inputs))
-    Object.assign(player, jumpPlayer(player, inputs, canJump(player)))
-    Object.assign(player, movePlayer(player, DT))
-    Object.assign(player, thinkGravity(player, DT))
-    Object.assign(player, adjustRoom(player))
-    Object.assign(player, clampRoom(player, rooms.length))
-    Object.assign(player, clampFloor(player, rooms.length))
 
-    for (let crewMember of gameState.crew) {
-      let rooms = gameState.rooms
-      Object.assign(crewMember, movePlayer(crewMember, DT))
-      Object.assign(crewMember, thinkGravity(crewMember, DT))
-      Object.assign(crewMember, adjustRoom(crewMember))
-      Object.assign(crewMember, clampRoom(crewMember, rooms.length))
-      Object.assign(crewMember, clampFloor(crewMember, rooms.length))
+    // handle input
+    let playerActions: Set<Action> = thinkPlayer(inputs, canJump(player))
+    Object.assign(player, horizontalCharacterPhysics(player, playerActions, isGrounded(player)))
+    Object.assign(player, verticalCharacterPhysics(isGrounded(player), playerActions))
+
+    // handle physics
+    for (let entity of allCharacters(gameState)) {
+      Object.assign(entity, performAccel(entity, DT))
+      Object.assign(entity, performVelocity(entity, DT))
+      Object.assign(entity, adjustRoom(entity))
+      Object.assign(entity, clampRoom(entity, rooms.length))
+      Object.assign(entity, clampFloor(entity, rooms.length))
     }
 
     Canvas.drawBackground(buffer,
