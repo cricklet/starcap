@@ -107,6 +107,77 @@ function crewMemberColor(crew: CrewMember): string {
   throw "Unknown crew type"
 }
 
+let AnimationEnum = {
+  RUN: 'run',
+  STAND: 'stand',
+  SKID: 'skid',
+  JUMP: 'jump'
+}
+
+type Animation =
+  | 'run'
+  | 'stand'
+  | 'skid'
+  | 'jump'
+
+let DirectionEnum = {
+  LEFT: 'left',
+  RIGHT: 'right'
+}
+
+type Direction =
+  | 'left'
+  | 'right'
+
+type AnimationState = {
+  animation: Animation,
+  direction: Direction
+}
+
+function sameSign(x, y) {
+  return x * y >= 0
+}
+
+function characterAnimation(
+  oldAnimation: ?{ direction: Direction, animation: Animation },
+  character: { vx: number, vy: number, ax: number, ay: number },
+  isGrounded: boolean
+): { direction: Direction, animation: Animation } {
+  let isMoving = 0.01 < Math.abs(character.vx)
+  let isAccelerating = 0.01 < Math.abs(character.ax)
+  let isSpeedIncreasing = sameSign(character.vx, character.ax)
+
+  let slowingDown = isMoving && isAccelerating && !isSpeedIncreasing
+
+  let movingLeft  = character.vx < - 0.01
+  let movingRight = character.vx >   0.01
+
+  // Setup default direction & animation
+  let direction = DirectionEnum.RIGHT
+  let animation = AnimationEnum.STAND
+
+  if (oldAnimation) {
+    animation = oldAnimation.animation
+    direction = oldAnimation.direction
+  }
+
+  if (movingLeft)  direction = DirectionEnum.LEFT
+  if (movingRight) direction = DirectionEnum.RIGHT
+
+  if (!isGrounded) {
+    animation = AnimationEnum.JUMP
+  } else {
+    if (slowingDown) animation = AnimationEnum.SKID
+    else if (isMoving) animation = AnimationEnum.RUN
+    else animation = AnimationEnum.STAND
+  }
+
+  return {
+    direction: direction,
+    animation: animation
+  }
+}
+
 function renderPlayer(player: Player): Sprite {
   return {
     color: 'rgb(154, 205, 50)',
@@ -135,7 +206,7 @@ function computeRoomColor(room: Room): string {
 }
 
 let PLAYER_SPEED = 8;
-let PLAYER_ACCEL = 80;
+let PLAYER_ACCEL = 50;
 let PLAYER_JUMP_SPEED = 7;
 let GRAVITY_ACCEL = 40;
 
@@ -309,6 +380,7 @@ $(document).ready(() => {
   let buffer: Canvas.Buffer = Canvas.createBuffer(CANVAS_WIDTH, CANVAS_HEIGHT)
 
   let gameState = initialGameState()
+  let animationStates: { [id: string]: AnimationState } = {}
 
   let step = () => {
     let player = gameState.player
@@ -319,14 +391,19 @@ $(document).ready(() => {
     Object.assign(player, horizontalCharacterPhysics(player, playerActions, isGrounded(player)))
     Object.assign(player, verticalCharacterPhysics(isGrounded(player), playerActions))
 
-    // handle physics
-    for (let entity of allCharacters(gameState)) {
-      Object.assign(entity, performAccel(entity, DT))
-      Object.assign(entity, performVelocity(entity, DT))
-      Object.assign(entity, adjustRoom(entity))
-      Object.assign(entity, clampRoom(entity, rooms.length))
-      Object.assign(entity, clampFloor(entity, rooms.length))
-    }
+    let playerAnimation = characterAnimation(
+      animationStates[player.id], player, isGrounded(player))
+
+    // if (Math.random() < 0.05) console.log(playerAnimation)
+
+    Object.assign(player, performAccel(player, DT))
+    Object.assign(player, performVelocity(player, DT))
+    Object.assign(player, adjustRoom(player))
+    Object.assign(player, clampRoom(player, rooms.length))
+    Object.assign(player, clampFloor(player))
+
+    // for (let entity of allCharacters(gameState)) {
+    // }
 
     Canvas.drawBackground(buffer,
       computeRoomColor(gameState.rooms[player.roomIndex]))
