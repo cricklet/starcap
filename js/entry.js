@@ -2,6 +2,8 @@
 
 import * as Canvas from './canvas'
 
+import * as Utils from './utils'
+
 import {
   CrewEnum,
   RoomEnum,
@@ -19,10 +21,14 @@ import type {
 let FPS = 60.0;
 let DT = 1.0 / FPS;
 
+let ANIM_FPS = 8.0;
+
 let PLAYER_HEIGHT = 1
-let PLAYER_WIDTH = 0.8
+let PLAYER_WIDTH = 1
 let ROOM_WIDTH = 8
 let ROOM_HEIGHT = 2.5
+
+let FLOOR_HEIGHT = 0.25
 
 function transformToPixels(units) {return units * 75}
 function transformToUnits(pixels) {return pixels / 75.0}
@@ -82,31 +88,6 @@ function initialGameState(): GameState {
   }
 }
 
-type Sprite = {
-  color: string,
-  x0: number,
-  y0: number,
-  x1: number,
-  y1: number
-}
-
-function transformRectToPixels(rect: {x0:number, y0:number, x1:number, y1:number})
-: {x0:number, y0:number, x1:number, y1:number} {
-  return {
-    x0: transformToPixels(rect.x0),
-    y0: transformToPixels(rect.y0),
-    x1: transformToPixels(rect.x1),
-    y1: transformToPixels(rect.y1)
-  }
-}
-
-function crewMemberColor(crew: CrewMember): string {
-  if (crew.type === CrewEnum.ENG) return 'rgb(223, 208, 0)'
-  if (crew.type === CrewEnum.SCI) return 'rgb(49, 61, 172)'
-  if (crew.type === CrewEnum.SEC) return 'rgb(223, 0, 0)'
-  throw "Unknown crew type"
-}
-
 let AnimationEnum = {
   RUN: 'run',
   STAND: 'stand',
@@ -131,7 +112,46 @@ type Direction =
 
 type AnimationState = {
   animation: Animation,
-  direction: Direction
+  direction: Direction,
+  time: number
+}
+
+let RIGHT_PLAYER_IMAGES = {
+  [AnimationEnum.RUN]: ['img/right_cap.png', 'img/right_cap_run_0.png'],
+  [AnimationEnum.STAND]: ['img/right_cap.png'],
+  [AnimationEnum.JUMP]: ['img/right_cap_run_0.png'],
+  [AnimationEnum.SKID]: ['img/right_cap.png']
+}
+let LEFT_PLAYER_IMAGES = Utils.mapObject(
+  RIGHT_PLAYER_IMAGES,
+  (images) => images.map((image) => image.replace('right', 'left')))
+
+type Sprite = {
+  image?: string,
+  flip?: boolean,
+  opacity?: number,
+  color: string,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number
+}
+
+function transformRectToPixels(rect: {x0:number, y0:number, x1:number, y1:number})
+: {x0:number, y0:number, x1:number, y1:number} {
+  return {
+    x0: transformToPixels(rect.x0),
+    y0: transformToPixels(rect.y0),
+    x1: transformToPixels(rect.x1),
+    y1: transformToPixels(rect.y1)
+  }
+}
+
+function crewMemberColor(crew: CrewMember): string {
+  if (crew.type === CrewEnum.ENG) return 'rgb(223, 208, 0)'
+  if (crew.type === CrewEnum.SCI) return 'rgb(49, 61, 172)'
+  if (crew.type === CrewEnum.SEC) return 'rgb(223, 0, 0)'
+  throw "Unknown crew type"
 }
 
 function sameSign(x, y) {
@@ -139,18 +159,19 @@ function sameSign(x, y) {
 }
 
 function characterAnimation(
-  oldAnimation: ?{ direction: Direction, animation: Animation },
+  oldAnimation: ?AnimationState,
   character: { vx: number, vy: number, ax: number, ay: number },
-  isGrounded: boolean
-): { direction: Direction, animation: Animation } {
-  let isMoving = 0.01 < Math.abs(character.vx)
-  let isAccelerating = 0.01 < Math.abs(character.ax)
+  isGrounded: boolean,
+  dt: number
+): AnimationState {
+  let isMoving = 0 < Math.abs(character.vx)
+  let isAccelerating = 0 < Math.abs(character.ax)
   let isSpeedIncreasing = sameSign(character.vx, character.ax)
 
   let slowingDown = isMoving && isAccelerating && !isSpeedIncreasing
 
-  let movingLeft  = character.vx < - 0.01
-  let movingRight = character.vx >   0.01
+  let movingLeft  = character.vx < - 0
+  let movingRight = character.vx >   0
 
   // Setup default direction & animation
   let direction = DirectionEnum.RIGHT
@@ -172,19 +193,53 @@ function characterAnimation(
     else animation = AnimationEnum.STAND
   }
 
+  let time = 0
+  if (oldAnimation) {
+    if (oldAnimation.animation !== animation) time = 0
+    else time = oldAnimation.time + dt
+  }
+
   return {
     direction: direction,
-    animation: animation
+    animation: animation,
+    time: time
   }
 }
 
-function renderPlayer(player: Player): Sprite {
+function renderShadow(character: { x: number, y: number }): Sprite {
+  let scale   = (16.0 - character.y) / 16.0
+  let opacity = Math.max(0, 2.0 - character.y) / 2.0
+
+  return {
+    color: 'rgb(50, 50, 50)',
+    image: 'img/shadow.png',
+    opacity: 0.5 * opacity * opacity,
+    x0: character.x - scale * PLAYER_WIDTH * 0.5,
+    x1: character.x + scale * PLAYER_WIDTH * 0.5,
+    y0: FLOOR_HEIGHT - 0.2 * PLAYER_WIDTH,
+    y1: PLAYER_HEIGHT + FLOOR_HEIGHT - 0.2 * PLAYER_WIDTH
+  }
+}
+
+function renderPlayer(player: Player, animationState: AnimationState): Sprite {
+  let animation = animationState.animation
+  let direction = animationState.direction
+  let time      = animationState.time
+
+  let i = Math.floor(time * ANIM_FPS + 0.25)
+  let images = animationState.direction === DirectionEnum.LEFT
+    ? LEFT_PLAYER_IMAGES[animation]
+    : RIGHT_PLAYER_IMAGES[animation]
+
+  let image = images[i % images.length]
+
   return {
     color: 'rgb(154, 205, 50)',
+    image: image,
     x0: player.x - PLAYER_WIDTH * 0.5,
     x1: player.x + PLAYER_WIDTH * 0.5,
-    y0: player.y,
-    y1: player.y + PLAYER_HEIGHT
+    y0: player.y + FLOOR_HEIGHT,
+    y1: player.y + PLAYER_HEIGHT + FLOOR_HEIGHT
   }
 }
 
@@ -206,7 +261,7 @@ function computeRoomColor(room: Room): string {
 }
 
 let PLAYER_SPEED = 8;
-let PLAYER_ACCEL = 50;
+let PLAYER_ACCEL = 30;
 let PLAYER_JUMP_SPEED = 7;
 let GRAVITY_ACCEL = 40;
 
@@ -238,8 +293,8 @@ function horizontalCharacterPhysics(
   let right = actions.has(ActionEnum.RIGHT)
 
   let maxVelocity = Math.abs(character.vx) > PLAYER_SPEED
-  let movingRight = character.vx >   0.01
-  let movingLeft  = character.vx < - 0.01
+  let movingRight = character.vx >   0
+  let movingLeft  = character.vx < - 0
   let maxRight = movingRight && maxVelocity
   let maxLeft  = movingLeft  && maxVelocity
 
@@ -271,10 +326,15 @@ function verticalCharacterPhysics(isGrounded: boolean, actions: Set<Action>): { 
 
 function performAccel(character: {vx: number, vy: number, ax: number, ay: number}, dt: number)
 : {vx?: number, vy?: number} {
-  return {
-    vx: character.vx + character.ax * dt,
-    vy: character.vy + character.ay * dt
-  }
+  let dvx = character.ax * dt
+  let dvy = character.ay * dt
+  let vx = character.vx + dvx
+  let vy = character.vy + dvy
+
+  if (Math.abs(vx) < Math.abs(dvx)) vx = 0
+  if (Math.abs(vy) < Math.abs(dvy)) vy = 0
+
+  return { vx: vx, vy: vy }
 }
 
 function performVelocity(character: {x: number, y: number, vx: number, vy: number}, dt: number)
@@ -333,34 +393,36 @@ function getChar(e: $.Event) {
 
 function bindInputs (inputs: Inputs) {
   $(document).keydown(function (e) {
-    var key = getChar(e);
+    let key = getChar(e);
     if (key) inputs[key] = true;
   });
   $(document).keyup(function (e) {
-    var key = getChar(e);
+    let key = getChar(e);
     if (key) inputs[key] = false;
   });
 }
 
-function runLoop(step: () => number) {
-  var lastTime = Date.now();
-  var frameCount = 0;
-  var frameStart = Date.now();
+function runLoop(step: (time: number) => number) {
+  let lastTime = Date.now();
+  let frameCount = 0;
+  let frameStart = Date.now();
+
+  let dt = 0.01;
 
   function loop () {
     // calculate FPS
-    frameCount += 1;
+    frameCount += 1
     if (Date.now() > frameStart + 1000) {
-      console.log(frameCount + " fps");
-      frameCount = 0;
-      frameStart = Date.now();
+      console.log(frameCount + " fps")
+      frameCount = 0
+      frameStart = Date.now()
     }
 
-    let dt = step();
-    setTimeout(loop, 1000 * dt);
+    dt = step(dt)
+    setTimeout(loop, 1000 * dt)
   };
 
-  loop();
+  loop()
 }
 
 function * allCharacters(gameState: GameState) {
@@ -380,9 +442,9 @@ $(document).ready(() => {
   let buffer: Canvas.Buffer = Canvas.createBuffer(CANVAS_WIDTH, CANVAS_HEIGHT)
 
   let gameState = initialGameState()
-  let animationStates: { [id: string]: AnimationState } = {}
+  let oldAnimations: { [id: string]: AnimationState } = {}
 
-  let step = () => {
+  let step = (dt) => {
     let player = gameState.player
     let rooms = gameState.rooms
 
@@ -391,10 +453,10 @@ $(document).ready(() => {
     Object.assign(player, horizontalCharacterPhysics(player, playerActions, isGrounded(player)))
     Object.assign(player, verticalCharacterPhysics(isGrounded(player), playerActions))
 
-    let playerAnimation = characterAnimation(
-      animationStates[player.id], player, isGrounded(player))
+    let playerAnimation: AnimationState = characterAnimation(
+      oldAnimations[player.id], player, isGrounded(player), dt)
 
-    // if (Math.random() < 0.05) console.log(playerAnimation)
+    oldAnimations[player.id] = playerAnimation
 
     Object.assign(player, performAccel(player, DT))
     Object.assign(player, performVelocity(player, DT))
@@ -413,10 +475,14 @@ $(document).ready(() => {
       if (crewMember.roomIndex === player.roomIndex)
         sprites.push(renderCrewMember(crewMember))
     }
-    sprites.push(renderPlayer(player))
+    sprites.push(renderPlayer(player, playerAnimation))
+    sprites.push(renderShadow(player))
 
     for (let sprite of sprites) {
-      Canvas.drawRect(buffer, sprite.color, transformRectToPixels(sprite))
+      if (sprite.image === undefined)
+        Canvas.drawRect(buffer, sprite.color, transformRectToPixels(sprite))
+      else
+        Canvas.drawImage(buffer, sprite.image, transformRectToPixels(sprite), sprite)
     }
 
     Canvas.drawBuffer(screen, buffer)

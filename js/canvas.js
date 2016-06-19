@@ -66,3 +66,42 @@ export function drawRect(
   buffer.context.fillStyle = color
   buffer.context.fillRect(rect.x0, bufferHeight(buffer) - rect.y0 - h, w, h)
 }
+
+var _imageCache = {};
+function loadImage(source: string) {
+  if (source in _imageCache) {
+    return _imageCache[source];
+  } else {
+    let drawing = new Image();
+    drawing.src = source;
+    _imageCache[source] = drawing;
+    return drawing;
+  }
+}
+
+function cacheAllImages(sources: Array<string>) {
+  return sources.map(loadImage)
+}
+
+export function drawImage(
+  buffer: Buffer,
+  imageSource: string,
+  rect: {x0:number, y0:number, x1:number, y1:number},
+  opts: { flip?: boolean, opacity?: number }
+) {
+  let w = rect.x1 - rect.x0
+  let h = rect.y1 - rect.y0
+  let x = rect.x0 + w * 0.5
+  let y = bufferHeight(buffer) - rect.y0 - h * 0.5
+
+  buffer.context.save();
+  buffer.context.translate(x, y)
+
+  if (opts.flip) buffer.context.scale(-1, 1);
+  if (opts.opacity) buffer.context.globalAlpha = opts.opacity
+
+  buffer.context.drawImage(loadImage(imageSource), -w / 2, -h / 2, w, h);
+  // buffer.context.drawImage(shadow, -w / 2, -h / 2, w, h);
+
+  buffer.context.restore();
+}
