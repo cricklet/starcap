@@ -28,7 +28,9 @@ let PLAYER_WIDTH = 1
 let ROOM_WIDTH = 8
 let ROOM_HEIGHT = 2.5
 
-let FLOOR_HEIGHT = 0.25
+let PLAYER_FLOOR_HEIGHT = 0.25
+let CREW_FLOOR_HEIGHT = 0.275
+let ALIEN_FLOOR_HEIGHT = 0.30
 
 function transformToPixels(units) {return units * 75}
 function transformToUnits(pixels) {return pixels / 75.0}
@@ -116,17 +118,51 @@ type AnimationState = {
   time: number
 }
 
-let RIGHT_PLAYER_IMAGES = {
+type AnimationMap = {[key: Animation]: Array<string>}
+type OrientedAnimationMap = {[dir: Direction]: AnimationMap}
+
+function _generateAnimationMap(imagesMap: AnimationMap, oldStr: string, newStr: string): AnimationMap {
+  return Utils.mapObject(
+    imagesMap,
+    (images) => images.map((image) => image.replace(oldStr, newStr)))
+}
+
+function _generateOrientedAnimationMap(dirImagesMap: OrientedAnimationMap, oldStr: string, newStr: string): OrientedAnimationMap {
+  return Utils.mapObject(
+    dirImagesMap,
+    (imagesMap) => _generateAnimationMap(imagesMap, oldStr, newStr))
+}
+
+let _RIGHT_PLAYER_IMAGES: AnimationMap = {
   [AnimationEnum.RUN]: ['img/right_cap.png', 'img/right_cap_run_0.png'],
   [AnimationEnum.STAND]: ['img/right_cap.png'],
   [AnimationEnum.JUMP]: ['img/right_cap_run_0.png'],
-  [AnimationEnum.SKID]: ['img/right_cap.png']
+  [AnimationEnum.SKID]: ['img/right_cap.png'] }
+
+let PLAYER_IMAGES = {
+  [DirectionEnum.LEFT]:  _generateAnimationMap(_RIGHT_PLAYER_IMAGES,  'right', 'left'),
+  [DirectionEnum.RIGHT]: _RIGHT_PLAYER_IMAGES
 }
-let LEFT_PLAYER_IMAGES = Utils.mapObject(
-  RIGHT_PLAYER_IMAGES,
-  (images) => images.map((image) => image.replace('right', 'left')))
+
+let _RIGHT_ALIEN_IMAGES: AnimationMap = {
+  [AnimationEnum.RUN]: ['img/right_alien.png', 'img/right_alien_run_0.png'],
+  [AnimationEnum.STAND]: ['img/right_alien.png'],
+  [AnimationEnum.JUMP]: ['img/right_alien_run_0.png'],
+  [AnimationEnum.SKID]: ['img/right_alien.png'] }
+
+let ALIEN_IMAGES = {
+  [DirectionEnum.LEFT]:  _generateAnimationMap(_RIGHT_ALIEN_IMAGES,  'right', 'left'),
+  [DirectionEnum.RIGHT]: _RIGHT_ALIEN_IMAGES
+}
+
+let CREW_IMAGES = {
+  [CrewEnum.SEC]: _generateOrientedAnimationMap(ALIEN_IMAGES, 'alien', 'sec'),
+  [CrewEnum.SCI]: _generateOrientedAnimationMap(ALIEN_IMAGES, 'alien', 'sci'),
+  [CrewEnum.ENG]: _generateOrientedAnimationMap(ALIEN_IMAGES, 'alien', 'eng')
+}
 
 type Sprite = {
+  sourceId: string,
   image?: string,
   flip?: boolean,
   opacity?: number,
@@ -206,51 +242,67 @@ function characterAnimation(
   }
 }
 
-function renderShadow(character: { x: number, y: number }): Sprite {
+function renderShadow(character: { id: string, x: number, y: number }): Sprite {
   let scale   = (16.0 - character.y) / 16.0
   let opacity = Math.max(0, 2.0 - character.y) / 2.0
 
   return {
+    sourceId: character.id,
     color: 'rgb(50, 50, 50)',
     image: 'img/shadow.png',
     opacity: 0.5 * opacity * opacity,
     x0: character.x - scale * PLAYER_WIDTH * 0.5,
     x1: character.x + scale * PLAYER_WIDTH * 0.5,
-    y0: FLOOR_HEIGHT - 0.2 * PLAYER_WIDTH,
-    y1: PLAYER_HEIGHT + FLOOR_HEIGHT - 0.2 * PLAYER_WIDTH
+    y0: - 0.2 * PLAYER_WIDTH,
+    y1: PLAYER_HEIGHT - 0.2 * PLAYER_WIDTH
   }
 }
 
-function renderPlayer(player: Player, animationState: AnimationState): Sprite {
+function computeAnimationImage(
+  animationState: AnimationState,
+  directionalImagesMap: OrientedAnimationMap
+): string {
   let animation = animationState.animation
   let direction = animationState.direction
   let time      = animationState.time
 
   let i = Math.floor(time * ANIM_FPS + 0.25)
-  let images = animationState.direction === DirectionEnum.LEFT
-    ? LEFT_PLAYER_IMAGES[animation]
-    : RIGHT_PLAYER_IMAGES[animation]
-
+  let images = directionalImagesMap[animationState.direction][animation]
   let image = images[i % images.length]
 
+  return image
+}
+
+function renderPlayer(player: Player, animationState: AnimationState): Sprite {
+  let image = computeAnimationImage(animationState, PLAYER_IMAGES)
+
   return {
+    sourceId: player.id,
     color: 'rgb(154, 205, 50)',
     image: image,
     x0: player.x - PLAYER_WIDTH * 0.5,
     x1: player.x + PLAYER_WIDTH * 0.5,
-    y0: player.y + FLOOR_HEIGHT,
-    y1: player.y + PLAYER_HEIGHT + FLOOR_HEIGHT
+    y0: player.y,
+    y1: player.y + PLAYER_HEIGHT
   }
 }
 
-function renderCrewMember(crew: CrewMember): Sprite {
+function renderCrewMember(crew: CrewMember, animationState: AnimationState): Sprite {
+  let image = computeAnimationImage(animationState, CREW_IMAGES[crew.type])
+
   return {
+    sourceId: crew.id,
     color: crewMemberColor(crew),
+    image: image,
     x0: crew.x - PLAYER_WIDTH * 0.5,
     x1: crew.x + PLAYER_WIDTH * 0.5,
     y0: crew.y,
     y1: crew.y + PLAYER_HEIGHT
   }
+}
+
+function adjustFloorHeight(sprite: Sprite, floorHeight: number): { y0?: number, y1?: number } {
+  return { y0: sprite.y0 + floorHeight, y1: sprite.y1 + floorHeight }
 }
 
 function computeRoomColor(room: Room): string {
@@ -442,7 +494,7 @@ $(document).ready(() => {
   let buffer: Canvas.Buffer = Canvas.createBuffer(CANVAS_WIDTH, CANVAS_HEIGHT)
 
   let gameState = initialGameState()
-  let oldAnimations: { [id: string]: AnimationState } = {}
+  let animationStates: { [id: string]: AnimationState } = {}
 
   let step = (dt) => {
     let player = gameState.player
@@ -453,10 +505,11 @@ $(document).ready(() => {
     Object.assign(player, horizontalCharacterPhysics(player, playerActions, isGrounded(player)))
     Object.assign(player, verticalCharacterPhysics(isGrounded(player), playerActions))
 
-    let playerAnimation: AnimationState = characterAnimation(
-      oldAnimations[player.id], player, isGrounded(player), dt)
-
-    oldAnimations[player.id] = playerAnimation
+    // handle animation
+    for (let character of allCharacters(gameState)) {
+      animationStates[character.id] =
+        characterAnimation(animationStates[character.id], character, isGrounded(character), dt)
+    }
 
     Object.assign(player, performAccel(player, DT))
     Object.assign(player, performVelocity(player, DT))
@@ -464,19 +517,22 @@ $(document).ready(() => {
     Object.assign(player, clampRoom(player, rooms.length))
     Object.assign(player, clampFloor(player))
 
-    // for (let entity of allCharacters(gameState)) {
-    // }
-
     Canvas.drawBackground(buffer,
       computeRoomColor(gameState.rooms[player.roomIndex]))
 
     let sprites = [];
     for (let crewMember of gameState.crew) {
-      if (crewMember.roomIndex === player.roomIndex)
-        sprites.push(renderCrewMember(crewMember))
+      if (crewMember.roomIndex === player.roomIndex) {
+        sprites.push(renderCrewMember(crewMember, animationStates[crewMember.id]))
+        sprites.push(renderShadow(crewMember))
+      }
     }
-    sprites.push(renderPlayer(player, playerAnimation))
+    sprites.push(renderPlayer(player, animationStates[player.id]))
     sprites.push(renderShadow(player))
+
+    for (let sprite of sprites) {
+      Object.assign(sprite, adjustFloorHeight(sprite, PLAYER_FLOOR_HEIGHT))
+    }
 
     for (let sprite of sprites) {
       if (sprite.image === undefined)
