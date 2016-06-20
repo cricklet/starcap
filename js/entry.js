@@ -419,6 +419,49 @@ function clampFloor(character: {y: number, vy: number}): {y?: number, vy?: numbe
   return {}
 }
 
+function rectsOverlap(
+  rect1: {x: number, y: number, width: number, height: number},
+  rect2: {x: number, y: number, width: number, height: number}
+): ?{ dx: number, dy: number } {
+  let dx = rect2.x - rect1.x
+  let dy = rect2.y - rect1.y
+
+  let maxDx = rect1.width * 0.5 + rect2.width * 0.5
+  let maxDy = rect1.height * 0.5 + rect2.height * 0.5
+
+  if (Math.abs(dx) > maxDx || Math.abs(dy) > maxDy) return
+
+  return { dx: dx, dy: dy }
+}
+
+function canPickup(
+  player: Player,
+  playerDirection: Direction,
+  playerGrounded: boolean,
+  crewMember: CrewMember,
+  crewGrounded: boolean
+): boolean {
+  if (!playerGrounded || !crewGrounded)
+    return false
+
+  if (player.roomIndex !== crewMember.roomIndex)
+    return false
+
+  let overlap = rectsOverlap(player, crewMember)
+  if (!overlap) return false
+
+  let dx = overlap.dx
+  let dy = overlap.dy
+
+  if (playerDirection === DirectionEnum.LEFT)
+    return dx < 0
+
+  if (playerDirection === DirectionEnum.RIGHT)
+    return dx > 0
+
+  return false
+}
+
 type Inputs = {[key: string]: boolean}
 
 let KEY_CODE_TO_CHAR = {
@@ -513,6 +556,16 @@ $(document).ready(() => {
     for (let character of allCharacters(gameState)) {
       animationStates[character.id] =
         characterAnimation(animationStates[character.id], character, isGrounded(character), dt)
+    }
+
+    // figure out if player can pick up any crew members
+    for (let crewMember of gameState.crew) {
+      let pickup = canPickup(
+        player, animationStates[player.id].direction, isGrounded(player),
+        crewMember, isGrounded(crewMember))
+
+      if (pickup)
+        console.log(pickup)
     }
 
     // handle world physics
