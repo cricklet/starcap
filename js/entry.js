@@ -28,9 +28,7 @@ let PLAYER_WIDTH = 1
 let ROOM_WIDTH = 8
 let ROOM_HEIGHT = 2.5
 
-let PLAYER_FLOOR_HEIGHT = 0.25
-let CREW_FLOOR_HEIGHT = 0.275
-let ALIEN_FLOOR_HEIGHT = 0.30
+let FLOOR_HEIGHT = 0.25
 
 function transformToPixels(units) {return units * 75}
 function transformToUnits(pixels) {return pixels / 75.0}
