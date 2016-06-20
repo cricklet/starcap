@@ -24,7 +24,7 @@ let DT = 1.0 / FPS;
 let ANIM_FPS = 8.0;
 
 let PLAYER_HEIGHT = 1
-let PLAYER_WIDTH = 1
+let PLAYER_WIDTH = 0.875
 let ROOM_WIDTH = 8
 let ROOM_HEIGHT = 2.5
 
@@ -540,7 +540,7 @@ $(document).ready(() => {
     // adjust the depth of the sprites
     for (let id of depths.inOrder()) {
       for (let sprite of sprites[id] || []) {
-        let height = FLOOR_HEIGHT + depths.depth(id) * 0.2
+        let height = FLOOR_HEIGHT + depths.depth(id) * 0.14
         Object.assign(sprite, adjustFloorHeight(sprite, height))
       }
     }
