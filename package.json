@@ -5,6 +5,7 @@
   },
   "description": "",
   "author": "Kenrick Rilee",
+  "dev": {},
   "devDependencies": {
     "babel-core": "^6.9.1",
     "babel-loader": "^6.2.4",
@@ -16,5 +17,8 @@
     "flow-bin": "^0.27.0",
     "imports-loader": "^0.6.5",
     "webpack": "^1.13.1"
+  },
+  "dependencies": {
+    "observe-js": "^0.5.7"
   }
 }

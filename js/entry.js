@@ -1,8 +1,8 @@
 /* @flow */
 
 import * as Canvas from './canvas'
-
 import * as Utils from './utils'
+import { ArrayObserver } from 'observe-js'
 
 import {
   CrewEnum,
@@ -493,6 +493,12 @@ $(document).ready(() => {
 
   let gameState = initialGameState()
   let animationStates: { [id: string]: AnimationState } = {}
+  let crewMembersMap: Utils.AutoMap = new Utils.AutoMap(o => o.id, gameState.crew)
+
+  // This gives us automatic randomized depths (i.e. z-distance) for each entity
+  let depths: Utils.DepthArray = new Utils.DepthArray()
+  depths.add(gameState.player.id, 0)
+  depths.observe(gameState.crew, (o) => o.id)
 
   let step = (dt) => {
     let player = gameState.player
@@ -509,34 +515,48 @@ $(document).ready(() => {
         characterAnimation(animationStates[character.id], character, isGrounded(character), dt)
     }
 
+    // handle world physics
     Object.assign(player, performAccel(player, DT))
     Object.assign(player, performVelocity(player, DT))
     Object.assign(player, adjustRoom(player))
     Object.assign(player, clampRoom(player, rooms.length))
     Object.assign(player, clampFloor(player))
 
+    // generate sprites
+    let sprites = {}
+    for (let crewMember of gameState.crew) {
+      if (crewMember.roomIndex === player.roomIndex) {
+        sprites[crewMember.id] = [
+          renderShadow(crewMember),
+          renderCrewMember(crewMember, animationStates[crewMember.id])
+        ]
+      }
+    }
+    sprites[player.id] = [
+      renderShadow(player),
+      renderPlayer(player, animationStates[player.id])
+    ]
+
+    // adjust the depth of the sprites
+    for (let id of depths.inOrder()) {
+      for (let sprite of sprites[id] || []) {
+        let height = FLOOR_HEIGHT + depths.depth(id) * 0.2
+        Object.assign(sprite, adjustFloorHeight(sprite, height))
+      }
+    }
+
+    // draw the background
     Canvas.drawBackground(buffer,
       computeRoomColor(gameState.rooms[player.roomIndex]))
 
-    let sprites = [];
-    for (let crewMember of gameState.crew) {
-      if (crewMember.roomIndex === player.roomIndex) {
-        sprites.push(renderCrewMember(crewMember, animationStates[crewMember.id]))
-        sprites.push(renderShadow(crewMember))
+    // draw the sprites in reverse depth order
+    for (let id of depths.inReverseOrder()) {
+      for (let sprite of sprites[id] || []) {
+        if (sprite.image === undefined)
+          Canvas.drawRect(buffer, sprite.color, transformRectToPixels(sprite))
+        else
+          Canvas.drawImage(buffer, sprite.image, transformRectToPixels(sprite), sprite)
       }
-    }
-    sprites.push(renderPlayer(player, animationStates[player.id]))
-    sprites.push(renderShadow(player))
-
-    for (let sprite of sprites) {
-      Object.assign(sprite, adjustFloorHeight(sprite, PLAYER_FLOOR_HEIGHT))
-    }
-
-    for (let sprite of sprites) {
-      if (sprite.image === undefined)
-        Canvas.drawRect(buffer, sprite.color, transformRectToPixels(sprite))
-      else
-        Canvas.drawImage(buffer, sprite.image, transformRectToPixels(sprite), sprite)
     }
 
     Canvas.drawBuffer(screen, buffer)
