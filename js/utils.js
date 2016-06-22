@@ -43,19 +43,22 @@ export class AutoMap<O> {
     this.hash = hash
     if (objects) this.observe(objects)
   }
-  observe(objects: Array<O>) {
+  observe<OO>(objects: Array<OO & O>): void {
     for (let obj of objects) {
-      this._add(obj)
+      this.add(obj)
     }
-    observeArray(objects, this._add, this._remove)
+    observeArray(objects, this.add, this._remove)
   }
-  _add(obj: O) {
+  hasKey(key: string): boolean {
+    return key in this.map
+  }
+  add(obj: O): void {
     this.map[this.hash(obj)] = obj
   }
-  _remove(obj: O) {
+  _remove(obj: O): void {
     delete this.map[this.hash(obj)]
   }
-  get(id: string) {
+  get(id: string): O {
     return this.map[id]
   }
 }
@@ -94,6 +97,10 @@ export class DepthArray {
 
     this.depths[val] = depth
     this.ordered.splice(i, 0, val)
+  }
+  update(val: string, depth?: number) {
+    this._remove(val)
+    this.add(val, depth)
   }
   _remove(val: string) {
     delete this.depths[val]

@@ -3,6 +3,7 @@
 import * as Canvas from './canvas'
 import * as Utils from './utils'
 import { ArrayObserver } from 'observe-js'
+import * as Lazy from './lazy'
 
 import {
   CrewEnum,
@@ -15,7 +16,8 @@ import type {
   CrewMember,
   Room,
   GameState,
-  Action
+  Action,
+  Character
 } from './types'
 
 let FPS = 60.0;
@@ -42,14 +44,17 @@ function genId(): string {return Math.random().toString().substring(2, 6)}
 function initialGameState(): GameState {
   return {
     player: {
+      kind: 'player',
       id: genId(),
       x: 3, y: 0, vx: 0, vy: 0, ax: 0, ay: 0,
       width: PLAYER_WIDTH,
       height: PLAYER_HEIGHT,
-      roomIndex: 0
+      roomIndex: 0,
+      carrying: undefined
     },
     crew: [
       {
+        kind: 'crew',
         id: genId(),
         x: 5, y: 0, vx: 0, vy: 0, ax: 0, ay: 0,
         width: PLAYER_WIDTH,
@@ -58,6 +63,7 @@ function initialGameState(): GameState {
         type: CrewEnum.ENG
       },
       {
+        kind: 'crew',
         id: genId(),
         x: 2, y: 0, vx: 0, vy: 0, ax: 0, ay: 0,
         width: PLAYER_WIDTH,
@@ -66,6 +72,7 @@ function initialGameState(): GameState {
         type: CrewEnum.SEC
       },
       {
+        kind: 'crew',
         id: genId(),
         x: 4, y: 0, vx: 0, vy: 0, ax: 0, ay: 0,
         width: PLAYER_WIDTH,
@@ -240,19 +247,36 @@ function characterAnimation(
   }
 }
 
-function renderShadow(character: { id: string, x: number, y: number }): Sprite {
+function generateShadowOpacity(character: {y: number }): number {
+  return Math.max(0, 2.0 - character.y) / 2.0
+}
+
+function generateShadowRect(character: { x: number, y: number, width: number, height: number })
+: { x0: number, y0: number, x1: number, y1: number } {
   let scale   = (16.0 - character.y) / 16.0
-  let opacity = Math.max(0, 2.0 - character.y) / 2.0
 
   return {
-    sourceId: character.id,
+    x0: character.x - scale * character.width * 0.5,
+    x1: character.x + scale * character.width * 0.5,
+    y0: - 0.2 * character.width,
+    y1: character.height - 0.2 * character.width
+  }
+}
+
+function generateShadowSprite(
+  id: string,
+  opacity: number,
+  rect: { x0: number, y0: number, x1: number, y1: number }
+): Sprite {
+  return {
+    sourceId: id,
     color: 'rgb(50, 50, 50)',
     image: 'img/shadow.png',
     opacity: 0.5 * opacity * opacity,
-    x0: character.x - scale * PLAYER_WIDTH * 0.5,
-    x1: character.x + scale * PLAYER_WIDTH * 0.5,
-    y0: - 0.2 * PLAYER_WIDTH,
-    y1: PLAYER_HEIGHT - 0.2 * PLAYER_WIDTH
+    x0: rect.x0,
+    x1: rect.x1,
+    y0: rect.y0,
+    y1: rect.y1
   }
 }
 
@@ -269,6 +293,81 @@ function computeAnimationImage(
   let image = images[i % images.length]
 
   return image
+}
+
+function adjustXForRoom(
+  x: number,
+  dRoom: number,
+  roomWidth: number
+): number {
+  return x - roomWidth * dRoom
+}
+
+function adjustRectForRoom(
+  rect: { x0: number, y0: number, x1: number, y1: number },
+  dRoom: number,
+  roomWidth: number
+): { x0: number, y0: number, x1: number, y1: number } {
+  return {
+    x0: adjustXForRoom(rect.x0, dRoom, roomWidth),
+    x1: adjustXForRoom(rect.x1, dRoom, roomWidth),
+    y0: rect.y0,
+    y1: rect.y1
+  }
+}
+
+function shouldDrawCharacter(
+  character: { x: number, width: number },
+  dRoom: number,
+  roomWidth: number
+): boolean {
+  let x = adjustXForRoom(character.x, dRoom, roomWidth)
+  return x > - character.width && x < roomWidth + character.width
+}
+
+function generateCharacterRect(
+  character: { x: number, y: number, width: number, height: number }
+): { x0: number, y0: number, x1: number, y1: number } {
+  return {
+    x0: character.x - character.width * 0.5,
+    x1: character.x + character.width * 0.5,
+    y0: character.y,
+    y1: character.y + character.height
+  }
+}
+
+function generateCharacterSprite(
+  id: string,
+  image: string,
+  color: string,
+  rect: { x0: number, y0: number, x1: number, y1: number }
+): Sprite {
+  return {
+    sourceId: id,
+    color: color,
+    image: image,
+    x0: rect.x0,
+    y0: rect.y0,
+    x1: rect.x1,
+    y1: rect.y1
+  }
+}
+
+function getOrientedAnimationMap(character: Character): OrientedAnimationMap {
+  if (character.kind === 'player') return PLAYER_IMAGES
+  if (character.kind === 'crew') return CREW_IMAGES[character.type]
+  throw "Failed to get animation map"
+}
+
+function getCharacterColor(character: Character): string {
+  if (character.kind === 'player') return 'rgb(154, 205, 50)'
+  if (character.kind === 'crew') {
+    if (character.type === CrewEnum.ENG) return 'rgb(223, 208, 0)'
+    if (character.type === CrewEnum.SCI) return 'rgb(49, 61, 172)'
+    if (character.type === CrewEnum.SEC) return 'rgb(223, 0, 0)'
+    throw "Unknown crew type"
+  }
+  throw "Failed to get animation map"
 }
 
 function renderPlayer(player: Player, animationState: AnimationState): Sprite {
@@ -397,10 +496,10 @@ function performVelocity(character: {x: number, y: number, vx: number, vy: numbe
 
 function adjustRoom(character: {x: number, y: number, roomIndex: number}): { x?: number, roomIndex?: number } {
   if (character.x < 0)
-    return { x: ROOM_WIDTH, roomIndex: character.roomIndex - 1 }
+    return { x: character.x + ROOM_WIDTH, roomIndex: character.roomIndex - 1 }
 
   if (character.x > ROOM_WIDTH)
-    return { x: 0, roomIndex: character.roomIndex + 1 }
+    return { x: character.x - ROOM_WIDTH, roomIndex: character.roomIndex + 1 }
 
   return {}
 }
@@ -419,6 +518,13 @@ function clampFloor(character: {y: number, vy: number}): {y?: number, vy?: numbe
   return {}
 }
 
+function computeRoomDistance(srcRoom: number, destRoom: number, numRooms: number): number {
+  let dRoom = destRoom - srcRoom
+  while (dRoom < - numRooms * 0.5) dRoom += numRooms
+  while (dRoom > numRooms * 0.5) dRoom -= numRooms
+  return dRoom
+}
+
 function rectsOverlap(
   rect1: {x: number, y: number, width: number, height: number},
   rect2: {x: number, y: number, width: number, height: number}
@@ -432,6 +538,20 @@ function rectsOverlap(
   if (Math.abs(dx) > maxDx || Math.abs(dy) > maxDy) return
 
   return { dx: dx, dy: dy }
+}
+
+function carryPhysics(
+  carrier: {x: number, y: number, vx: number, vy: number, roomIndex: number},
+  carried: {x: number, y: number, vx: number, vy: number, roomIndex: number},
+  direction: Direction
+): { x: number, y: number, vx: number, vy: number, roomIndex: number } {
+  let x = carrier.x
+  let y = carrier.y + PLAYER_HEIGHT * 0.2
+
+  if (direction === DirectionEnum.LEFT) x -= PLAYER_WIDTH * 0.5
+  else x += PLAYER_WIDTH * 0.5
+
+  return { x: x, y: y, vx: carrier.vx, vy: carrier.vy, roomIndex: carrier.roomIndex }
 }
 
 function canPickup(
@@ -526,6 +646,17 @@ function * allCharacters(gameState: GameState) {
   yield gameState.player
 }
 
+function * inDepthOrder <O> (entityMap: Utils.AutoMap<O>, depths: Utils.DepthArray)
+: Iterable<O> {
+  for (let id of depths.inReverseOrder()) {
+    if (entityMap.hasKey(id)) {
+      yield entityMap.get(id)
+    }
+  }
+}
+
+
+
 $(document).ready(() => {
   let inputs = {};
   bindInputs(inputs)
@@ -536,7 +667,12 @@ $(document).ready(() => {
 
   let gameState = initialGameState()
   let animationStates: { [id: string]: AnimationState } = {}
-  let crewMembersMap: Utils.AutoMap = new Utils.AutoMap(o => o.id, gameState.crew)
+
+  let crewMap: Utils.AutoMap<CrewMember> = new Utils.AutoMap(o => o.id, gameState.crew)
+
+  let characterMap: Utils.AutoMap<Character> = new Utils.AutoMap(o => o.id)
+  characterMap.add(gameState.player)
+  characterMap.observe(gameState.crew)
 
   // This gives us automatic randomized depths (i.e. z-distance) for each entity
   let depths: Utils.DepthArray = new Utils.DepthArray()
@@ -559,39 +695,68 @@ $(document).ready(() => {
     }
 
     // figure out if player can pick up any crew members
-    for (let crewMember of gameState.crew) {
+    for (let crewMember of inDepthOrder(crewMap, depths)) {
+      // already carrying
+      if (player.carrying) break
+
       let pickup = canPickup(
         player, animationStates[player.id].direction, isGrounded(player),
         crewMember, isGrounded(crewMember))
 
-      if (pickup)
-        console.log(pickup)
+      // pickup the crew member!
+      if (pickup) {
+        Object.assign(player, { carrying: crewMember.id })
+        depths.update(crewMember.id, -0.05)
+      }
+    }
+
+    // carry object
+    if (player.carrying) {
+      let playerDir = animationStates[player.id].direction
+      let carriedEntity = characterMap.get(player.carrying)
+      Object.assign(carriedEntity, carryPhysics(player, carriedEntity, playerDir))
     }
 
     // handle world physics
-    Object.assign(player, performAccel(player, DT))
-    Object.assign(player, performVelocity(player, DT))
-    Object.assign(player, adjustRoom(player))
-    Object.assign(player, clampRoom(player, rooms.length))
-    Object.assign(player, clampFloor(player))
+    for (let character of allCharacters(gameState)) {
+      Object.assign(character, performAccel(character, DT))
+      Object.assign(character, performVelocity(character, DT))
+      Object.assign(character, adjustRoom(character))
+      Object.assign(character, clampRoom(character, rooms.length))
+      Object.assign(character, clampFloor(character))
+    }
+
+    console.log('')
 
     // generate sprites
-    let sprites = {}
-    for (let crewMember of gameState.crew) {
-      if (crewMember.roomIndex === player.roomIndex) {
-        sprites[crewMember.id] = [
-          renderShadow(crewMember),
-          renderCrewMember(crewMember, animationStates[crewMember.id])
-        ]
-      }
+    let sprites: {[id: string]: Array<Sprite>} = {}
+    for (let character: Character of allCharacters(gameState)) {
+      let dRoom = computeRoomDistance(
+        character.roomIndex,
+        player.roomIndex,
+        rooms.length)
+
+      if (!shouldDrawCharacter(character, dRoom, ROOM_WIDTH))
+        continue
+
+      let image = computeAnimationImage(animationStates[character.id], getOrientedAnimationMap(character))
+      let color = getCharacterColor(character)
+
+      let characterRect = adjustRectForRoom(
+        generateCharacterRect(character), dRoom, ROOM_WIDTH)
+
+      let shadowOpacity = generateShadowOpacity(character)
+      let shadowRect = adjustRectForRoom(
+        generateShadowRect(character), dRoom, ROOM_WIDTH)
+
+      sprites[character.id] = [
+        generateShadowSprite(character.id, shadowOpacity, shadowRect),
+        generateCharacterSprite(character.id, image, color, characterRect)
+      ]
     }
-    sprites[player.id] = [
-      renderShadow(player),
-      renderPlayer(player, animationStates[player.id])
-    ]
 
     // adjust the depth of the sprites
-    for (let id of depths.inOrder()) {
+    for (let id of Object.keys(sprites)) {
       for (let sprite of sprites[id] || []) {
         let height = FLOOR_HEIGHT + depths.depth(id) * 0.14
         Object.assign(sprite, adjustFloorHeight(sprite, height))

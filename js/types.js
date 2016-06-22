@@ -25,7 +25,25 @@ type RoomEnumType =
   | 'engine'
   | 'store'
 
-type Entity = {
+//// Unfortunately, the current version of flow doesn't support disjoint
+//// unions that involve intersections.
+// type _Entity = {
+//   id: string,
+//   x: number,
+//   y: number,
+//   ax: number,
+//   ay: number,
+//   vx: number,
+//   vy: number,
+//   width: number,
+//   height: number,
+//   roomIndex: number
+// }
+
+export type Player = {
+  kind: 'player',
+  carrying?: string,
+  // DRY, DRY, DRY
   id: string,
   x: number,
   y: number,
@@ -35,19 +53,24 @@ type Entity = {
   vy: number,
   width: number,
   height: number,
-  roomIndex: number
+  roomIndex: number,
 }
 
-export type Player =
-  & Entity
-  & {
-  }
-
-export type CrewMember =
-  & Entity
-  & {
-    type: CrewEnumType,
-  }
+export type CrewMember = {
+  kind: 'crew',
+  type: CrewEnumType,
+  // DRY, DRY, DRY
+  id: string,
+  x: number,
+  y: number,
+  ax: number,
+  ay: number,
+  vx: number,
+  vy: number,
+  width: number,
+  height: number,
+  roomIndex: number,
+}
 
 export type Character = Player | CrewMember
 
