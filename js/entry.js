@@ -248,7 +248,7 @@ function characterAnimation(
 }
 
 function generateShadowOpacity(character: {y: number }): number {
-  return Math.max(0, 2.0 - character.y) / 2.0
+  return (2.0 - Math.min(character.y, 1.5)) / 2.0
 }
 
 function generateShadowRect(character: { x: number, y: number, width: number, height: number })
@@ -268,6 +268,7 @@ function generateShadowSprite(
   opacity: number,
   rect: { x0: number, y0: number, x1: number, y1: number }
 ): Sprite {
+  console.log(opacity)
   return {
     sourceId: id,
     color: 'rgb(50, 50, 50)',
@@ -412,14 +413,20 @@ function computeRoomColor(room: Room): string {
 let PLAYER_SPEED = 8;
 let PLAYER_ACCEL = 30;
 let PLAYER_JUMP_SPEED = 7;
+let PLAYER_THROW_XSPEED = 8;
+let PLAYER_THROW_YSPEED = 4;
 let GRAVITY_ACCEL = 40;
 
-function thinkPlayer(inputs: Inputs, canJump: boolean): Set<Action> {
+function thinkPlayerLocomotion(
+  keysDown: KeysDown,
+  canJump: boolean
+): Set<Action> {
   let actions: Set<Action> = new Set()
 
-  if (inputs.a) actions.add(ActionEnum.LEFT)
-  if (inputs.d) actions.add(ActionEnum.RIGHT)
-  if (canJump && inputs.w) actions.add(ActionEnum.JUMP)
+  if (keysDown.a) actions.add(ActionEnum.LEFT)
+  if (keysDown.d) actions.add(ActionEnum.RIGHT)
+  if (keysDown.w) actions.add(ActionEnum.UP)
+  if (canJump && keysDown.w) actions.add(ActionEnum.JUMP)
 
   return actions
 }
@@ -554,6 +561,26 @@ function carryPhysics(
   return { x: x, y: y, vx: carrier.vx, vy: carrier.vy, roomIndex: carrier.roomIndex }
 }
 
+function throwPhysics(
+  carrier: { vx: number, vy: number },
+  direction: Direction,
+  actions: Set<Action>
+): { vx: number, vy: number } {
+  let vx = carrier.vx
+  let vy = carrier.vy + PLAYER_THROW_YSPEED
+
+  if (actions.has(ActionEnum.LEFT)) vx -= PLAYER_THROW_XSPEED
+  if (actions.has(ActionEnum.RIGHT)) vx += PLAYER_THROW_XSPEED
+  if (actions.has(ActionEnum.UP)) vy += PLAYER_THROW_XSPEED * 0.5
+
+  if (!actions.a && !actions.d && !actions.w) {
+    if (direction === DirectionEnum.LEFT)  vx -= PLAYER_THROW_XSPEED * 0.5
+    if (direction === DirectionEnum.RIGHT) vx += PLAYER_THROW_XSPEED * 0.5
+  }
+
+  return { vx: vx, vy: vy }
+}
+
 function canPickup(
   player: Player,
   playerDirection: Direction,
@@ -582,36 +609,43 @@ function canPickup(
   return false
 }
 
-type Inputs = {[key: string]: boolean}
+type KeysDown = {[key: string]: boolean}
+type KeysPressed = Set<string>
 
-let KEY_CODE_TO_CHAR = {
+let KEYS_DOWN_MAP = {
   '37': 'a',
   '38': 'w',
   '39': 'd',
-  '40': 's',
+  '40': 's'
+}
+let KEYS_PRESSED_MAP = {
   '189': '-',
   '187': '=',
   '32': ' ',
   '13': 'x'
 }
-function getChar(e: $.Event) {
+function getChar(e: $.Event, keysMap: {[keyCode: string]: string}) {
   if (e.keyCode >= 48 && e.keyCode <= 90)
     return String.fromCharCode(e.keyCode).toLowerCase();
 
-  if (e.keyCode in KEY_CODE_TO_CHAR)
-    return KEY_CODE_TO_CHAR[e.keyCode];
+  if (e.keyCode in keysMap)
+    return keysMap[e.keyCode];
 
   return null;
 }
 
-function bindInputs (inputs: Inputs) {
+function bindInputs (keysDown: KeysDown, keysPressed: KeysPressed) {
   $(document).keydown(function (e) {
-    let key = getChar(e);
-    if (key) inputs[key] = true;
+    let key = getChar(e, KEYS_DOWN_MAP);
+    if (key) keysDown[key] = true;
   });
   $(document).keyup(function (e) {
-    let key = getChar(e);
-    if (key) inputs[key] = false;
+    let key = getChar(e, KEYS_DOWN_MAP);
+    if (key) keysDown[key] = false;
+  });
+  $(document).keypress(function (e) {
+    let key = getChar(e, KEYS_PRESSED_MAP);
+    if (key && !keysPressed.has(key)) keysPressed.add(key)
   });
 }
 
@@ -658,8 +692,9 @@ function * inDepthOrder <O> (entityMap: Utils.AutoMap<O>, depths: Utils.DepthArr
 
 
 $(document).ready(() => {
-  let inputs = {};
-  bindInputs(inputs)
+  let keysDown: KeysDown = {}
+  let keysPressed: KeysPressed = new Set()
+  bindInputs(keysDown, keysPressed)
 
   let screenEl = $('#world-canvas')[0]
   let screen: Canvas.Buffer = Canvas.setupBuffer(screenEl, CANVAS_WIDTH, CANVAS_HEIGHT)
@@ -667,6 +702,7 @@ $(document).ready(() => {
 
   let gameState = initialGameState()
   let animationStates: { [id: string]: AnimationState } = {}
+  let characterActions: { [id: string]: Set<Action> } = {}
 
   let crewMap: Utils.AutoMap<CrewMember> = new Utils.AutoMap(o => o.id, gameState.crew)
 
@@ -683,31 +719,41 @@ $(document).ready(() => {
     let player = gameState.player
     let rooms = gameState.rooms
 
-    // handle input
-    let playerActions: Set<Action> = thinkPlayer(inputs, canJump(player))
-    Object.assign(player, horizontalCharacterPhysics(player, playerActions, isGrounded(player)))
-    Object.assign(player, verticalCharacterPhysics(isGrounded(player), playerActions))
+    // actions: wasd
+    let playerActions: Set<Action> = thinkPlayerLocomotion(keysDown, canJump(player))
+    characterActions[player.id] = playerActions
 
-    // handle animation
-    for (let character of allCharacters(gameState)) {
-      animationStates[character.id] =
-        characterAnimation(animationStates[character.id], character, isGrounded(character), dt)
+    // actions: carry or throw
+    if (keysPressed.has(' ')) {
+      if (canJump(player) && !player.carrying) playerActions.add(ActionEnum.CARRY)
+      if (player.carrying !== undefined) playerActions.add(ActionEnum.THROW)
+      keysPressed.delete(' ')
     }
 
     // figure out if player can pick up any crew members
-    for (let crewMember of inDepthOrder(crewMap, depths)) {
-      // already carrying
-      if (player.carrying) break
+    if (playerActions.has(ActionEnum.CARRY)) {
+      // shouldn't be already carrying something
+      if(player.carrying !== undefined) throw 'Wat carry fail'
 
-      let pickup = canPickup(
-        player, animationStates[player.id].direction, isGrounded(player),
-        crewMember, isGrounded(crewMember))
+      for (let crewMember of inDepthOrder(crewMap, depths)) {
+        let pickup = canPickup(
+          player, animationStates[player.id].direction, isGrounded(player),
+          crewMember, isGrounded(crewMember))
 
-      // pickup the crew member!
-      if (pickup) {
-        Object.assign(player, { carrying: crewMember.id })
-        depths.update(crewMember.id, -0.05)
+        // pickup the crew member!
+        if (pickup) {
+          Object.assign(player, { carrying: crewMember.id })
+          depths.update(crewMember.id, -0.05)
+        }
       }
+    }
+
+    // handle character physics
+    for (let character of allCharacters(gameState)) {
+      let actions: Set<Action> = characterActions[character.id]
+      if (actions === undefined) actions = new Set()
+      Object.assign(character, horizontalCharacterPhysics(character, actions, isGrounded(character)))
+      Object.assign(character, verticalCharacterPhysics(isGrounded(character), actions))
     }
 
     // carry object
@@ -715,6 +761,23 @@ $(document).ready(() => {
       let playerDir = animationStates[player.id].direction
       let carriedEntity = characterMap.get(player.carrying)
       Object.assign(carriedEntity, carryPhysics(player, carriedEntity, playerDir))
+    }
+
+    // throw object
+    if (playerActions.has(ActionEnum.THROW)) {
+      if(player.carrying === undefined) throw 'Wat throw fail'
+
+      let playerDir = animationStates[player.id].direction
+      let carried = characterMap.get(player.carrying)
+      Object.assign(carried, throwPhysics(player, playerDir, playerActions))
+      Object.assign(player, { carrying: undefined })
+      depths.update(carried.id)
+    }
+
+    // handle animation
+    for (let character of allCharacters(gameState)) {
+      animationStates[character.id] =
+        characterAnimation(animationStates[character.id], character, isGrounded(character), dt)
     }
 
     // handle world physics
@@ -725,8 +788,6 @@ $(document).ready(() => {
       Object.assign(character, clampRoom(character, rooms.length))
       Object.assign(character, clampFloor(character))
     }
-
-    console.log('')
 
     // generate sprites
     let sprites: {[id: string]: Array<Sprite>} = {}

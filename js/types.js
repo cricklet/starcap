@@ -90,6 +90,7 @@ export type GameState = {
 export let ActionEnum = {
   LEFT: 'left',
   RIGHT: 'right',
+  UP: 'up',
   JUMP: 'jump',
   USE: 'use',
   THROW: 'throw',
@@ -100,6 +101,7 @@ export let ActionEnum = {
 export type Action = // yeah yeah, DRY :(
   | 'left'
   | 'right'
+  | 'up'
   | 'jump'
   | 'use'
   | 'throw'
