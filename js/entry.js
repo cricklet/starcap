@@ -8,7 +8,8 @@ import * as Lazy from './lazy'
 import {
   CrewEnum,
   RoomEnum,
-  ActionEnum
+  ActionEnum,
+  FurnitureEnum
 } from './types'
 
 import type {
@@ -19,6 +20,8 @@ import type {
   GameState,
   Action,
   Character,
+  Furniture,
+  FurnitureEnumType,
   RGB,
   Recolor
 } from './types'
@@ -34,7 +37,7 @@ let ROOM_WIDTH = 8
 let ROOM_HEIGHT = 2.5
 
 let FLOOR_HEIGHT = 0.3
-let OBJECTS_HEIGHT = 0.5
+let FURNITURE_HEIGHT = 0.5
 let WALL_START_HEIGHT = 0.6
 
 function transformToPixels(units) {return units * 75}
@@ -94,6 +97,17 @@ function initialGameState(): GameState {
         type: CrewEnum.SCI
       }
     ],
+    furnitures: [
+      {
+        kind: 'furniture',
+        type: FurnitureEnum.CONSOLE,
+        id: genId(),
+        x: 7,
+        width: 1,
+        height: 0.66,
+        roomIndex: 0
+      }
+    ],
     rooms: [
       {
         type: RoomEnum.BRIDGE
@@ -105,6 +119,19 @@ function initialGameState(): GameState {
         type: RoomEnum.STORE
       }
     ]
+  }
+}
+
+let FURNITURE_IMAGES = {
+  [FurnitureEnum.CONSOLE]: 'img/console.png'
+}
+
+function generateFurnitureRect(furniture: Furniture) {
+  return {
+    x0: furniture.x - furniture.width * 0.5,
+    x1: furniture.x + furniture.width * 0.5,
+    y0: FURNITURE_HEIGHT,
+    y1: FURNITURE_HEIGHT + furniture.height
   }
 }
 
@@ -922,12 +949,21 @@ $(document).ready(() => {
       computeRoomColor(gameState.rooms[player.roomIndex]))
 
     // draw the floor
-    Canvas.drawRect(buffer, '#ddd',
-      transformRectToPixels({ x0: 0, y0: 0, x1: ROOM_WIDTH, y1: WALL_START_HEIGHT + 0.04 }))
-    Canvas.drawRect(buffer, '#aaa',
-      transformRectToPixels({ x0: 0, y0: 0, x1: ROOM_WIDTH, y1: WALL_START_HEIGHT + 0.02 }))
+    Canvas.drawRect(buffer, '#e0e0e0',
+      transformRectToPixels({ x0: 0, y0: 0, x1: ROOM_WIDTH, y1: WALL_START_HEIGHT + 0.06 }))
+    Canvas.drawRect(buffer, '#ccc',
+      transformRectToPixels({ x0: 0, y0: 0, x1: ROOM_WIDTH, y1: WALL_START_HEIGHT + 0.03 }))
     Canvas.drawRect(buffer, '#eee',
       transformRectToPixels({ x0: 0, y0: 0, x1: ROOM_WIDTH, y1: WALL_START_HEIGHT }))
+
+    // draw the furnitures
+    for (let furniture of gameState.furnitures) {
+      if (furniture.roomIndex != player.roomIndex) continue
+
+      let image = FURNITURE_IMAGES[furniture.type]
+      let rect = transformRectToPixels(generateFurnitureRect(furniture))
+      Canvas.drawImage(buffer, image, rect, {})
+    }
 
     // draw the sprites in reverse depth order
     for (let id of depths.inReverseOrder()) {

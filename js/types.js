@@ -14,6 +14,13 @@ export type CrewEnumType =
   | 'sci'
   | 'sec'
 
+export let FurnitureEnum = {
+  CONSOLE: 'console'
+}
+
+export type FurnitureEnumType =
+  | 'console'
+
 export let RoomEnum = {
   BRIDGE: 'bridge',
   ENGINE: 'engine',
@@ -72,6 +79,16 @@ export type CrewMember = {
   roomIndex: number,
 }
 
+export type Furniture = {
+  kind: 'furniture',
+  id: string,
+  type: FurnitureEnumType,
+  x: number,
+  width: number,
+  height: number,
+  roomIndex: number,
+}
+
 export type Character = Player | CrewMember
 
 export type Room = {
@@ -81,6 +98,7 @@ export type Room = {
 export type GameState = {
   player: Player,
   crew: Array<CrewMember>,
+  furnitures: Array<Furniture>,
   rooms: Array<Room>
 }
 
