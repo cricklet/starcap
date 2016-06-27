@@ -115,8 +115,10 @@ export type RGB = {
   r:number, g:number, b:number, a?: number
 }
 
+export type RGBMatcher = (rgb: RGB) => boolean
+
 export type Recolor = {
   hash: string,
-  oldRGBs: Array<RGB>,
-  newRGBs: Array<RGB>
+  checkers: Array<RGBMatcher>,
+  rgbs: Array<RGB>
 }

@@ -92,19 +92,21 @@ function recolorImage(image, recolor: Recolor) {
   newBuffer.context.drawImage(image, 0, 0, w, h);
 
   let imageData = newBuffer.context.getImageData(0, 0, w, h);
-  for (let [oldRGB, newRGB] of Utils.zip(recolor.oldRGBs, recolor.newRGBs)) {
+  for (let [rgb, checker] of Utils.zip(recolor.rgbs, recolor.checkers)) {
     for (let i = 0; i < imageData.data.length; i += 4) {
       // is this pixel the old rgb?
-      if(imageData.data[i] == oldRGB.r
-          && imageData.data[i+1] == oldRGB.g
-          && imageData.data[i+2] == oldRGB.b
-      ){
+      if (checker({
+        r: imageData.data[i],
+        g: imageData.data[i+1],
+        b: imageData.data[i+2],
+        a: imageData.data[i+3]
+      })) {
         // change to your new rgb
-        imageData.data[i] = newRGB.r
-        imageData.data[i+1] = newRGB.g
-        imageData.data[i+2] = newRGB.b
-        if (newRGB.a !== undefined)
-          imageData.data[i+3] = newRGB.a
+        imageData.data[i] = rgb.r
+        imageData.data[i+1] = rgb.g
+        imageData.data[i+2] = rgb.b
+        if (rgb.a !== undefined)
+          imageData.data[i+3] = rgb.a
       }
     }
   }
