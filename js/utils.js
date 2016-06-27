@@ -125,3 +125,15 @@ export class DepthArray {
     }
   }
 }
+
+export function * zip<A,B>(as: Array<A>, bs: Array<B>): Iterable<[A,B]> {
+  if (as.length != bs.length) throw "Wat, can't zip different length arrays"
+  for (let i = 0; i < as.length; i ++) {
+    yield [as[i], bs[i]]
+  }
+}
+
+export function * combine<A,B>(as: Array<A>, bs: Array<B>): Iterable<A|B> {
+  for (let a of as) yield a
+  for (let b of bs) yield b
+}

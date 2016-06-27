@@ -9,7 +9,7 @@ export let CrewEnum = {
   SEC: 'sec'
 }
 
-type CrewEnumType =
+export type CrewEnumType =
   | 'eng'
   | 'sci'
   | 'sec'
@@ -20,7 +20,7 @@ export let RoomEnum = {
   STORE: 'store'
 }
 
-type RoomEnumType =
+export type RoomEnumType =
   | 'bridge'
   | 'engine'
   | 'store'
@@ -107,3 +107,16 @@ export type Action = // yeah yeah, DRY :(
   | 'throw'
   | 'carry'
   | 'shoot'
+
+////////////////////////////////////////////////////////////
+// Rendering types
+
+export type RGB = {
+  r:number, g:number, b:number, a?: number
+}
+
+export type Recolor = {
+  hash: string,
+  oldRGBs: Array<RGB>,
+  newRGBs: Array<RGB>
+}

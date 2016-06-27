@@ -14,10 +14,13 @@ import {
 import type {
   Player,
   CrewMember,
+  CrewEnumType,
   Room,
   GameState,
   Action,
-  Character
+  Character,
+  RGB,
+  Recolor
 } from './types'
 
 let FPS = 60.0;
@@ -41,6 +44,14 @@ let CANVAS_PLAYER_HEIGHT = transformToPixels(PLAYER_HEIGHT)
 
 function genId(): string {return Math.random().toString().substring(2, 6)}
 
+function stringToHash(s: string): number {
+  // from http://stackoverflow.com/questions/7616461/generate-a-hash-from-string-in-javascript-jquery
+  let hash = 0, i = 0, len = s.length, chr;
+  while ( i < len ) {
+    hash  = ((hash << 5) - hash + s.charCodeAt(i++)) << 0;
+  }
+  return hash;
+};
 function initialGameState(): GameState {
   return {
     player: {
@@ -160,15 +171,10 @@ let ALIEN_IMAGES = {
   [DirectionEnum.RIGHT]: _RIGHT_ALIEN_IMAGES
 }
 
-let CREW_IMAGES = {
-  [CrewEnum.SEC]: _generateOrientedAnimationMap(ALIEN_IMAGES, 'alien', 'sec'),
-  [CrewEnum.SCI]: _generateOrientedAnimationMap(ALIEN_IMAGES, 'alien', 'sci'),
-  [CrewEnum.ENG]: _generateOrientedAnimationMap(ALIEN_IMAGES, 'alien', 'eng')
-}
-
 type Sprite = {
   sourceId: string,
   image?: string,
+  imageRecolor?: Recolor,
   flip?: boolean,
   opacity?: number,
   color: string,
@@ -268,7 +274,6 @@ function generateShadowSprite(
   opacity: number,
   rect: { x0: number, y0: number, x1: number, y1: number }
 ): Sprite {
-  console.log(opacity)
   return {
     sourceId: id,
     color: 'rgb(50, 50, 50)',
@@ -317,6 +322,21 @@ function adjustRectForRoom(
   }
 }
 
+function adjustRectForScale(
+  rect: { x0: number, y0: number, x1: number, y1: number },
+  scale: number
+): { x0: number, y0: number, x1: number, y1: number } {
+  let x = (rect.x0 + rect.x1) * 0.5
+  let w = (rect.x1 - rect.x0) * scale
+  let h = (rect.y1 - rect.y0) * scale
+  return {
+    x0: x - w * 0.5,
+    x1: x + w * 0.5,
+    y0: rect.y0,
+    y1: rect.y0 + h
+  }
+}
+
 function shouldDrawCharacter(
   character: { x: number, width: number },
   dRoom: number,
@@ -341,9 +361,10 @@ function generateCharacterSprite(
   id: string,
   image: string,
   color: string,
-  rect: { x0: number, y0: number, x1: number, y1: number }
+  rect: { x0: number, y0: number, x1: number, y1: number },
+  recolor: ?Recolor
 ): Sprite {
-  return {
+  let sprite: Sprite = {
     sourceId: id,
     color: color,
     image: image,
@@ -352,12 +373,103 @@ function generateCharacterSprite(
     x1: rect.x1,
     y1: rect.y1
   }
+  if (recolor) sprite.imageRecolor = recolor
+
+  return sprite
 }
 
 function getOrientedAnimationMap(character: Character): OrientedAnimationMap {
   if (character.kind === 'player') return PLAYER_IMAGES
-  if (character.kind === 'crew') return CREW_IMAGES[character.type]
+  if (character.kind === 'crew') return PLAYER_IMAGES
   throw "Failed to get animation map"
+}
+
+let PERSON_COLORS: Array<RGB> = [
+  {r:123,g:52,b:0}, // shaded hair
+  {r:156,g:77,b:0}, // hair
+  {r:255,g:197,b:145}, // shaded skin
+  {r:255,g:212,b:165}  // bright skin
+]
+
+let ALT_PERSON_SCALES = [
+  1, 0.95
+]
+
+let ALT_PERSON_COLORS: Array<Array<RGB>> = [
+  PERSON_COLORS,
+  [ // woman
+    {r:123,g:52,b:0, a:0}, // shaded hair
+    {r:156,g:77,b:0}, // hair
+    {r:123,g:52,b:0}, // shaded skin
+    {r:255,g:212,b:165}  // bright skin
+  ]
+]
+
+let BODY_COLORS: Array<RGB> = [
+  {r:99,g:181,b:26}, // darkest
+  {r:124,g:199,b:38}, // medium
+  {r:152,g:220,b:56} // lightest
+]
+
+let ALTERNATE_BODY_COLORS: {[type: CrewEnumType]: Array<RGB>} = {
+  [CrewEnum.SEC]: [
+    {r:179,g:20,b:38}, // darkest
+    {r:207,g:18,b:45}, // medium
+    {r:240,g:19,b:52} // lightest
+  ],
+  [CrewEnum.ENG]: [
+    {r:186,g:179,b:0},
+    {r:205,g:199,b:0},
+    {r:228,g:220,b:0}
+  ],
+  [CrewEnum.SCI]: [
+    {r:52,g:88,b:183},
+    {r:62,g:104,b:216},
+    {r:73,g:133,b:229}
+  ]
+}
+
+function generateRecolors(oldRGBs: Array<RGB>, newRGBs: Array<RGB>): Recolor {
+  return {
+    oldRGBs: oldRGBs,
+    newRGBs: newRGBs,
+    hash: '' + stringToHash(
+      oldRGBs.map((rgb) => Object.values(rgb)).join('') +
+      newRGBs.map((rgb) => Object.values(rgb)).join('')
+    )
+  }
+}
+
+function combineRecolors(recolor1: Recolor, recolor2: Recolor): Recolor {
+  return {
+    oldRGBs: Array.from(Utils.combine(recolor1.oldRGBs, recolor2.oldRGBs)),
+    newRGBs: Array.from(Utils.combine(recolor1.newRGBs, recolor2.newRGBs)),
+    hash: recolor1.hash + recolor2.hash
+  }
+}
+
+function computeImageScale(character: Character): number {
+  return ALT_PERSON_SCALES[stringToHash(character.id) % ALT_PERSON_SCALES.length]
+}
+
+function computeImageRecolor(character: Character): ?Recolor {
+  let recolors: Array<Recolor> = [];
+  if (character.kind === 'crew') {
+    recolors.push(
+      generateRecolors(BODY_COLORS, ALTERNATE_BODY_COLORS[character.type]))
+  }
+
+  recolors.push(
+    generateRecolors(PERSON_COLORS, ALT_PERSON_COLORS[stringToHash(character.id) % ALT_PERSON_COLORS.length]))
+
+  if (recolors.length === 0)
+    return undefined
+
+  return recolors.reduce(
+    (prev, curr) => {
+      if (prev === undefined) return curr
+      return combineRecolors(prev, curr)
+    })
 }
 
 function getCharacterColor(character: Character): string {
@@ -369,34 +481,6 @@ function getCharacterColor(character: Character): string {
     throw "Unknown crew type"
   }
   throw "Failed to get animation map"
-}
-
-function renderPlayer(player: Player, animationState: AnimationState): Sprite {
-  let image = computeAnimationImage(animationState, PLAYER_IMAGES)
-
-  return {
-    sourceId: player.id,
-    color: 'rgb(154, 205, 50)',
-    image: image,
-    x0: player.x - PLAYER_WIDTH * 0.5,
-    x1: player.x + PLAYER_WIDTH * 0.5,
-    y0: player.y,
-    y1: player.y + PLAYER_HEIGHT
-  }
-}
-
-function renderCrewMember(crew: CrewMember, animationState: AnimationState): Sprite {
-  let image = computeAnimationImage(animationState, CREW_IMAGES[crew.type])
-
-  return {
-    sourceId: crew.id,
-    color: crewMemberColor(crew),
-    image: image,
-    x0: crew.x - PLAYER_WIDTH * 0.5,
-    x1: crew.x + PLAYER_WIDTH * 0.5,
-    y0: crew.y,
-    y1: crew.y + PLAYER_HEIGHT
-  }
 }
 
 function adjustFloorHeight(sprite: Sprite, floorHeight: number): { y0?: number, y1?: number } {
@@ -413,8 +497,8 @@ function computeRoomColor(room: Room): string {
 let PLAYER_SPEED = 8;
 let PLAYER_ACCEL = 30;
 let PLAYER_JUMP_SPEED = 7;
-let PLAYER_THROW_XSPEED = 8;
-let PLAYER_THROW_YSPEED = 4;
+let PLAYER_THROW_XSPEED = 4;
+let PLAYER_THROW_YSPEED = 3;
 let GRAVITY_ACCEL = 40;
 
 function thinkPlayerLocomotion(
@@ -601,10 +685,10 @@ function canPickup(
   let dy = overlap.dy
 
   if (playerDirection === DirectionEnum.LEFT)
-    return dx < 0
+    return dx < 0.2
 
   if (playerDirection === DirectionEnum.RIGHT)
-    return dx > 0
+    return dx > - 0.2
 
   return false
 }
@@ -682,7 +766,7 @@ function * allCharacters(gameState: GameState) {
 
 function * inDepthOrder <O> (entityMap: Utils.AutoMap<O>, depths: Utils.DepthArray)
 : Iterable<O> {
-  for (let id of depths.inReverseOrder()) {
+  for (let id of depths.inOrder()) {
     if (entityMap.hasKey(id)) {
       yield entityMap.get(id)
     }
@@ -744,6 +828,7 @@ $(document).ready(() => {
         if (pickup) {
           Object.assign(player, { carrying: crewMember.id })
           depths.update(crewMember.id, -0.05)
+          break
         }
       }
     }
@@ -802,9 +887,12 @@ $(document).ready(() => {
 
       let image = computeAnimationImage(animationStates[character.id], getOrientedAnimationMap(character))
       let color = getCharacterColor(character)
+      let recolor: ?Recolor = computeImageRecolor(character)
+      let scale = computeImageScale(character)
 
-      let characterRect = adjustRectForRoom(
-        generateCharacterRect(character), dRoom, ROOM_WIDTH)
+      let characterRect = generateCharacterRect(character)
+      characterRect = adjustRectForRoom(characterRect, dRoom, ROOM_WIDTH)
+      characterRect = adjustRectForScale(characterRect, scale)
 
       let shadowOpacity = generateShadowOpacity(character)
       let shadowRect = adjustRectForRoom(
@@ -812,7 +900,7 @@ $(document).ready(() => {
 
       sprites[character.id] = [
         generateShadowSprite(character.id, shadowOpacity, shadowRect),
-        generateCharacterSprite(character.id, image, color, characterRect)
+        generateCharacterSprite(character.id, image, color, characterRect, recolor)
       ]
     }
 
