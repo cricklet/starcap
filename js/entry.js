@@ -209,6 +209,7 @@ function characterAnimation(
   oldAnimation: ?AnimationState,
   character: { vx: number, vy: number, ax: number, ay: number },
   isGrounded: boolean,
+  isCarried: boolean,
   dt: number
 ): AnimationState {
   let isMoving = 0 < Math.abs(character.vx)
@@ -232,7 +233,9 @@ function characterAnimation(
   if (movingLeft)  direction = DirectionEnum.LEFT
   if (movingRight) direction = DirectionEnum.RIGHT
 
-  if (!isGrounded) {
+  if (isCarried) {
+    animation = AnimationEnum.STAND
+  } else if (!isGrounded) {
     animation = AnimationEnum.JUMP
   } else {
     if (slowingDown) animation = AnimationEnum.SKID
@@ -862,7 +865,7 @@ $(document).ready(() => {
     // handle animation
     for (let character of allCharacters(gameState)) {
       animationStates[character.id] =
-        characterAnimation(animationStates[character.id], character, isGrounded(character), dt)
+        characterAnimation(animationStates[character.id], character, isGrounded(character), character.id === player.carrying, dt)
     }
 
     // handle world physics
