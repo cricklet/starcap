@@ -14,13 +14,6 @@ export type CrewEnumType =
   | 'sci'
   | 'sec'
 
-export let FurnitureEnum = {
-  CONSOLE: 'console'
-}
-
-export type FurnitureEnumType =
-  | 'console'
-
 export let RoomEnum = {
   BRIDGE: 'bridge',
   ENGINE: 'engine',
@@ -82,7 +75,7 @@ export type CrewMember = {
 export type Furniture = {
   kind: 'furniture',
   id: string,
-  type: FurnitureEnumType,
+  type: string,
   x: number,
   width: number,
   height: number,

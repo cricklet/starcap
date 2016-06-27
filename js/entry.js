@@ -8,8 +8,7 @@ import * as Lazy from './lazy'
 import {
   CrewEnum,
   RoomEnum,
-  ActionEnum,
-  FurnitureEnum
+  ActionEnum
 } from './types'
 
 import type {
@@ -21,7 +20,6 @@ import type {
   Action,
   Character,
   Furniture,
-  FurnitureEnumType,
   RGB,
   Recolor
 } from './types'
@@ -37,8 +35,8 @@ let ROOM_WIDTH = 8
 let ROOM_HEIGHT = 2.5
 
 let FLOOR_HEIGHT = 0.3
-let FURNITURE_HEIGHT = 0.5
-let WALL_START_HEIGHT = 0.6
+let FURNITURE_HEIGHT = 0.6
+let WALL_START_HEIGHT = 0.65
 
 function transformToPixels(units) {return units * 75}
 function transformToUnits(pixels) {return pixels / 75.0}
@@ -100,11 +98,29 @@ function initialGameState(): GameState {
     furnitures: [
       {
         kind: 'furniture',
-        type: FurnitureEnum.CONSOLE,
+        type: 'console_green',
         id: genId(),
         x: 7,
-        width: 1,
-        height: 0.66,
+        width: 8 * 0.12,
+        height: 6 * 0.12,
+        roomIndex: 0
+      },
+      {
+        kind: 'furniture',
+        type: 'console_red',
+        id: genId(),
+        x: 5.5,
+        width: 8 * 0.12,
+        height: 6 * 0.12,
+        roomIndex: 0
+      },
+      {
+        kind: 'furniture',
+        type: 'screen',
+        id: genId(),
+        x: 2.5,
+        width: 20 * 0.12,
+        height: 16 * 0.12,
         roomIndex: 0
       }
     ],
@@ -122,8 +138,8 @@ function initialGameState(): GameState {
   }
 }
 
-let FURNITURE_IMAGES = {
-  [FurnitureEnum.CONSOLE]: 'img/console.png'
+function generateFurnitureImage(furniture: Furniture) {
+  return 'img/' + furniture.type + '.png'
 }
 
 function generateFurnitureRect(furniture: Furniture) {
@@ -949,10 +965,8 @@ $(document).ready(() => {
       computeRoomColor(gameState.rooms[player.roomIndex]))
 
     // draw the floor
-    Canvas.drawRect(buffer, '#e0e0e0',
-      transformRectToPixels({ x0: 0, y0: 0, x1: ROOM_WIDTH, y1: WALL_START_HEIGHT + 0.06 }))
-    Canvas.drawRect(buffer, '#ccc',
-      transformRectToPixels({ x0: 0, y0: 0, x1: ROOM_WIDTH, y1: WALL_START_HEIGHT + 0.03 }))
+    Canvas.drawRect(buffer, '#ddd',
+      transformRectToPixels({ x0: 0, y0: 0, x1: ROOM_WIDTH, y1: WALL_START_HEIGHT + 0.05 }))
     Canvas.drawRect(buffer, '#eee',
       transformRectToPixels({ x0: 0, y0: 0, x1: ROOM_WIDTH, y1: WALL_START_HEIGHT }))
 
@@ -960,7 +974,7 @@ $(document).ready(() => {
     for (let furniture of gameState.furnitures) {
       if (furniture.roomIndex != player.roomIndex) continue
 
-      let image = FURNITURE_IMAGES[furniture.type]
+      let image = generateFurnitureImage(furniture)
       let rect = transformRectToPixels(generateFurnitureRect(furniture))
       Canvas.drawImage(buffer, image, rect, {})
     }
