@@ -33,7 +33,9 @@ let PLAYER_WIDTH = 0.875
 let ROOM_WIDTH = 8
 let ROOM_HEIGHT = 2.5
 
-let FLOOR_HEIGHT = 0.25
+let FLOOR_HEIGHT = 0.3
+let OBJECTS_HEIGHT = 0.5
+let WALL_START_HEIGHT = 0.6
 
 function transformToPixels(units) {return units * 75}
 function transformToUnits(pixels) {return pixels / 75.0}
@@ -491,7 +493,7 @@ function adjustFloorHeight(sprite: Sprite, floorHeight: number): { y0?: number, 
 }
 
 function computeRoomColor(room: Room): string {
-  if (room.type == RoomEnum.BRIDGE) return '#eee'
+  if (room.type == RoomEnum.BRIDGE) return '#f8f8f8'
   if (room.type == RoomEnum.ENGINE) return '#fee'
   if (room.type == RoomEnum.STORE) return '#efe'
   throw "Unknown room"
@@ -918,6 +920,14 @@ $(document).ready(() => {
     // draw the background
     Canvas.drawBackground(buffer,
       computeRoomColor(gameState.rooms[player.roomIndex]))
+
+    // draw the floor
+    Canvas.drawRect(buffer, '#ddd',
+      transformRectToPixels({ x0: 0, y0: 0, x1: ROOM_WIDTH, y1: WALL_START_HEIGHT + 0.04 }))
+    Canvas.drawRect(buffer, '#aaa',
+      transformRectToPixels({ x0: 0, y0: 0, x1: ROOM_WIDTH, y1: WALL_START_HEIGHT + 0.02 }))
+    Canvas.drawRect(buffer, '#eee',
+      transformRectToPixels({ x0: 0, y0: 0, x1: ROOM_WIDTH, y1: WALL_START_HEIGHT }))
 
     // draw the sprites in reverse depth order
     for (let id of depths.inReverseOrder()) {
