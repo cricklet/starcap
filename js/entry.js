@@ -20,7 +20,6 @@ import type {
   Action,
   Character,
   RGB,
-  RGBMatcher,
   Recolor
 } from './types'
 
@@ -435,14 +434,10 @@ let ALTERNATE_BODY_COLORS: {[type: CrewEnumType]: Array<RGB>} = {
   ]
 }
 
-function generateChecker(rgb: RGB): RGBMatcher {
-  return (p: RGB) => (p.r === rgb.r && p.g === rgb.g && p.b === rgb.b)
-}
-
 function generateRecolors(oldRGBs: Array<RGB>, newRGBs: Array<RGB>): Recolor {
   return {
-    checkers: oldRGBs.map(generateChecker),
-    rgbs: newRGBs,
+    oldRGBs: oldRGBs,
+    newRGBs: newRGBs,
     hash: '' + stringToHash(
       oldRGBs.map((rgb) => Object.values(rgb)).join('') +
       newRGBs.map((rgb) => Object.values(rgb)).join('')
@@ -452,8 +447,8 @@ function generateRecolors(oldRGBs: Array<RGB>, newRGBs: Array<RGB>): Recolor {
 
 function combineRecolors(recolor1: Recolor, recolor2: Recolor): Recolor {
   return {
-    checkers: Array.from(Utils.combine(recolor1.checkers, recolor2.checkers)),
-    rgbs: Array.from(Utils.combine(recolor1.rgbs, recolor2.rgbs)),
+    oldRGBs: Array.from(Utils.combine(recolor1.oldRGBs, recolor2.oldRGBs)),
+    newRGBs: Array.from(Utils.combine(recolor1.newRGBs, recolor2.newRGBs)),
     hash: recolor1.hash + recolor2.hash
   }
 }
