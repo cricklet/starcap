@@ -44,7 +44,6 @@ export type RoomEnumType =
 
 export type Player = {
   kind: 'player',
-  carrying?: string,
   // DRY, DRY, DRY
   id: string,
   x: number,
@@ -56,6 +55,8 @@ export type Player = {
   width: number,
   height: number,
   roomIndex: number,
+
+  components: {[kind: string]: Component},
 }
 
 export type CrewMember = {
@@ -72,7 +73,11 @@ export type CrewMember = {
   width: number,
   height: number,
   roomIndex: number,
+
+  components: {[kind: string]: Component},
 }
+
+export type Character = Player | CrewMember
 
 export type Furniture = {
   kind: 'furniture',
@@ -83,8 +88,6 @@ export type Furniture = {
   height: number,
   roomIndex: number,
 }
-
-export type Character = Player | CrewMember
 
 export type Room = {
   type: RoomEnumType
@@ -98,6 +101,62 @@ export type GameState = {
 }
 
 ////////////////////////////////////////////////////////////
+// Component types
+
+export let AnimationEnum = {
+  RUN: 'run',
+  STAND: 'stand',
+  SKID: 'skid',
+  JUMP: 'jump'
+}
+
+export type Animation =
+  | 'run'
+  | 'stand'
+  | 'skid'
+  | 'jump'
+
+export let DirectionEnum = {
+  LEFT: 'left',
+  RIGHT: 'right'
+}
+
+export type Direction =
+  | 'left'
+  | 'right'
+
+export type AnimationComponent = {
+  kind: 'animation',
+  animation: Animation,
+  direction: Direction,
+  time: number
+}
+
+export type ImagerComponent = {
+  kind: 'imager',
+  computeImage: (
+    dir: Direction,
+    anim: Animation,
+    time: number
+  ) => string
+}
+
+export type CarrierComponent = {
+  kind: 'carrier',
+  carrying?: string
+}
+
+export type CarriableComponent = {
+  kind: 'carriable'
+}
+
+export type Component =
+  | AnimationComponent
+  | ImagerComponent
+  | CarrierComponent
+  | CarriableComponent
+
+////////////////////////////////////////////////////////////
 // Intermediate types
 
 export let ActionEnum = {
@@ -105,10 +164,7 @@ export let ActionEnum = {
   RIGHT: 'right',
   UP: 'up',
   JUMP: 'jump',
-  USE: 'use',
-  THROW: 'throw',
-  CARRY: 'carry',
-  SHOOT: 'shoot'
+  ACT: 'act'
 }
 
 export type Action = // yeah yeah, DRY :(
@@ -116,10 +172,7 @@ export type Action = // yeah yeah, DRY :(
   | 'right'
   | 'up'
   | 'jump'
-  | 'use'
-  | 'throw'
-  | 'carry'
-  | 'shoot'
+  | 'act'
 
 ////////////////////////////////////////////////////////////
 // Rendering types

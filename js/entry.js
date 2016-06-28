@@ -8,7 +8,9 @@ import * as Lazy from './lazy'
 import {
   CrewEnum,
   RoomEnum,
-  ActionEnum
+  ActionEnum,
+  DirectionEnum,
+  AnimationEnum
 } from './types'
 
 import type {
@@ -21,7 +23,14 @@ import type {
   Character,
   Furniture,
   RGB,
-  Recolor
+  Recolor,
+  AnimationComponent,
+  CarrierComponent,
+  Animation,
+  Direction,
+  ImagerComponent,
+  CarriableComponent,
+  Component
 } from './types'
 
 let FPS = 60.0;
@@ -56,6 +65,28 @@ function stringToHash(s: string): number {
   return hash;
 };
 
+function defaultAnimation(): AnimationComponent {
+  return {
+    kind: 'animation',
+    direction: DirectionEnum.LEFT,
+    animation: AnimationEnum.STAND,
+    time: 0
+  }
+}
+
+function defaultCarrier(): CarrierComponent {
+  return {
+    kind: 'carrier',
+    carrying: undefined
+  }
+}
+
+function defaultCarriable(): CarriableComponent {
+  return {
+    kind: 'carriable'
+  }
+}
+
 function initialGameState(): GameState {
   return {
     player: {
@@ -65,7 +96,11 @@ function initialGameState(): GameState {
       width: PLAYER_WIDTH,
       height: PLAYER_HEIGHT,
       roomIndex: 0,
-      carrying: undefined
+      components: {
+        'animation': defaultAnimation(),
+        'carrier': defaultCarrier(),
+        'imager': defaultImager(PLAYER_IMAGES)
+      }
     },
     crew: [
       {
@@ -75,7 +110,10 @@ function initialGameState(): GameState {
         width: PLAYER_WIDTH,
         height: PLAYER_HEIGHT,
         roomIndex: 1,
-        type: CrewEnum.ENG
+        type: CrewEnum.ENG,
+        components: {
+          'carriable': defaultCarriable()
+        }
       },
       {
         kind: 'crew',
@@ -84,7 +122,10 @@ function initialGameState(): GameState {
         width: PLAYER_WIDTH,
         height: PLAYER_HEIGHT,
         roomIndex: 2,
-        type: CrewEnum.SEC
+        type: CrewEnum.SEC,
+        components: {
+          'carriable': defaultCarriable()
+        }
       }
     ],
     furnitures: [
@@ -273,35 +314,7 @@ function generateFurnitureRect(furniture: Furniture) {
   }
 }
 
-let AnimationEnum = {
-  RUN: 'run',
-  STAND: 'stand',
-  SKID: 'skid',
-  JUMP: 'jump'
-}
-
-type Animation =
-  | 'run'
-  | 'stand'
-  | 'skid'
-  | 'jump'
-
-let DirectionEnum = {
-  LEFT: 'left',
-  RIGHT: 'right'
-}
-
-type Direction =
-  | 'left'
-  | 'right'
-
-type AnimationState = {
-  animation: Animation,
-  direction: Direction,
-  time: number
-}
-
-type AnimationMap = {[key: Animation]: Array<string>}
+type AnimationMap = {[anim: Animation]: Array<string>}
 type OrientedAnimationMap = {[dir: Direction]: AnimationMap}
 
 function _generateAnimationMap(imagesMap: AnimationMap, oldStr: string, newStr: string): AnimationMap {
@@ -336,6 +349,19 @@ let _RIGHT_ALIEN_IMAGES: AnimationMap = {
 let ALIEN_IMAGES = {
   [DirectionEnum.LEFT]:  _generateAnimationMap(_RIGHT_ALIEN_IMAGES,  'right', 'left'),
   [DirectionEnum.RIGHT]: _RIGHT_ALIEN_IMAGES
+}
+
+function defaultImager(map: OrientedAnimationMap): ImagerComponent {
+  let computeImage = (dir: Direction, anim: Animation, time: number) => {
+    let i = Math.floor(time * ANIM_FPS + 0.25)
+    let images = map[dir][anim]
+    let image = images[i % images.length]
+    return image
+  }
+  return {
+    kind: 'imager',
+    computeImage: computeImage
+  }
 }
 
 type Sprite = {
@@ -373,12 +399,12 @@ function sameSign(x, y) {
 }
 
 function characterAnimation(
-  oldAnimation: ?AnimationState,
+  oldAnimation: ?AnimationComponent,
   character: { vx: number, vy: number, ax: number, ay: number },
   isGrounded: boolean,
   isCarried: boolean,
   dt: number
-): AnimationState {
+): AnimationComponent {
   let isMoving = 0 < Math.abs(character.vx)
   let isAccelerating = 0 < Math.abs(character.ax)
   let isSpeedIncreasing = sameSign(character.vx, character.ax)
@@ -388,7 +414,7 @@ function characterAnimation(
   let movingLeft  = character.vx < - 0
   let movingRight = character.vx >   0
 
-  // Setup default direction & animation
+  // Setup default Direction & Animation
   let direction = DirectionEnum.RIGHT
   let animation = AnimationEnum.STAND
 
@@ -417,6 +443,7 @@ function characterAnimation(
   }
 
   return {
+    kind: 'animation',
     direction: direction,
     animation: animation,
     time: time
@@ -457,7 +484,7 @@ function generateShadowSprite(
 }
 
 function computeAnimationImage(
-  animationState: AnimationState,
+  animationState: AnimationComponent,
   directionalImagesMap: OrientedAnimationMap
 ): string {
   let animation = animationState.animation
@@ -551,7 +578,7 @@ function generateCharacterSprite(
 function getOrientedAnimationMap(character: Character): OrientedAnimationMap {
   if (character.kind === 'player') return PLAYER_IMAGES
   if (character.kind === 'crew') return PLAYER_IMAGES
-  throw "Failed to get animation map"
+  throw "Failed to get Animation map"
 }
 
 let PERSON_COLORS: Array<RGB> = [
@@ -650,7 +677,7 @@ function getCharacterColor(character: Character): string {
     if (character.type === CrewEnum.SEC) return 'rgb(223, 0, 0)'
     throw "Unknown crew type"
   }
-  throw "Failed to get animation map"
+  throw "Failed to get Animation map"
 }
 
 function adjustFloorHeight(sprite: Sprite, floorHeight: number): { y0?: number, y1?: number } {
@@ -935,12 +962,34 @@ function runLoop(step: (time: number) => number) {
   loop()
 }
 
-function * allCharacters(gameState: GameState) {
+function * allCharacters(gameState: GameState): Iterator<Character> {
   for (let crewMember of gameState.crew) {
     yield crewMember
   }
 
   yield gameState.player
+}
+
+function * charactersWithComponent(gameState: GameState, kind: string): Iterable<[Character, Component]> {
+  for (let character of allCharacters(gameState)) {
+    if (kind in character.components) {
+      let component = character.components[kind]
+      if (kind != component.kind)
+        throw "Wat, component has wrong type: " + component.kind + " != " + kind
+
+      yield [character, character.components[kind]]
+    }
+  }
+}
+
+function * characterCarriers(gameState: GameState): Iterable<[Character, CarrierComponent]> {
+  let character = gameState.player
+  if (!character.components.carrier) throw 'Wat, player should be carrier'
+
+  let carrier = character.components.carrier
+  if (carrier.kind !== 'carrier') throw 'Wat, carrier component is wrong'
+
+  yield [character, carrier]
 }
 
 function * inDepthOrder <O> (entityMap: Utils.AutoMap<O>, depths: Utils.DepthArray)
@@ -952,8 +1001,6 @@ function * inDepthOrder <O> (entityMap: Utils.AutoMap<O>, depths: Utils.DepthArr
   }
 }
 
-
-
 $(document).ready(() => {
   let keysDown: KeysDown = {}
   let keysPressed: KeysPressed = new Set()
@@ -964,7 +1011,7 @@ $(document).ready(() => {
   let buffer: Canvas.Buffer = Canvas.createBuffer(CANVAS_WIDTH, CANVAS_HEIGHT)
 
   let gameState = initialGameState()
-  let animationStates: { [id: string]: AnimationState } = {}
+  let animationStates: { [id: string]: AnimationComponent } = {}
   let characterActions: { [id: string]: Set<Action> } = {}
 
   let crewMap: Utils.AutoMap<CrewMember> = new Utils.AutoMap(o => o.id, gameState.crew)
@@ -983,34 +1030,48 @@ $(document).ready(() => {
   let step = (dt) => {
     time += dt
 
-    let player = gameState.player
     let rooms = gameState.rooms
 
-    // actions: wasd
-    let playerActions: Set<Action> = thinkPlayerLocomotion(keysDown, canJump(player))
-    characterActions[player.id] = playerActions
+    {
+      let player = gameState.player
 
-    // actions: carry or throw
-    if (keysPressed.has(' ')) {
-      if (canJump(player) && !player.carrying) playerActions.add(ActionEnum.CARRY)
-      if (player.carrying !== undefined) playerActions.add(ActionEnum.THROW)
-      keysPressed.delete(' ')
+      // Actions: wasd
+      let playerActions: Set<Action> = thinkPlayerLocomotion(keysDown, canJump(player))
+      characterActions[player.id] = playerActions
+
+      // Actions: carry or throw
+      if (keysPressed.has(' ')) {
+        playerActions.add(ActionEnum.ACT)
+        keysPressed.delete(' ')
+      }
     }
 
-    // figure out if player can pick up any crew members
-    if (playerActions.has(ActionEnum.CARRY)) {
+    // figure out if character can pick up any crew members
+    for (let [character, carrier] of characterCarriers(gameState)) {
+      let actions = characterActions[character.id]
+
+      // skip if there's no carrying action
+      if (!actions.has(ActionEnum.ACT)) continue
+
       // shouldn't be already carrying something
-      if(player.carrying !== undefined) throw 'Wat carry fail'
+      if (carrier.carrying !== undefined) continue
+
+      // shouldn't be in the air
+      if (!isGrounded(character)) continue
 
       for (let crewMember of inDepthOrder(crewMap, depths)) {
+        if (!crewMember.components.carriable) throw 'Wat, crew members should be carriable'
+        if (crewMember.components.carriable.kind !== 'carriable') throw 'Wat, carriable is broken'
+
         let pickup = canPickup(
-          player, animationStates[player.id].direction, isGrounded(player),
+          character, animationStates[character.id].direction, isGrounded(character),
           crewMember, isGrounded(crewMember))
 
         // pickup the crew member!
         if (pickup) {
-          Object.assign(player, { carrying: crewMember.id })
+          Object.assign(carrier, { carrying: crewMember.id })
           depths.update(crewMember.id, -0.05)
+          actions.delete(ActionEnum.ACT)
           break
         }
       }
@@ -1024,28 +1085,44 @@ $(document).ready(() => {
       Object.assign(character, verticalCharacterPhysics(isGrounded(character), actions))
     }
 
-    // carry object
-    if (player.carrying) {
-      let playerDir = animationStates[player.id].direction
-      let carriedEntity = characterMap.get(player.carrying)
-      Object.assign(carriedEntity, carryPhysics(player, carriedEntity, playerDir))
+    // handle carrying & throwing
+    for (let [character, carrier] of characterCarriers(gameState)) {
+      let actions = characterActions[character.id]
+
+      // move carried object
+      if (carrier.carrying) {
+        let characterDir = animationStates[character.id].direction
+        let carriedEntity = characterMap.get(carrier.carrying)
+        Object.assign(carriedEntity, carryPhysics(character, carriedEntity, characterDir))
+      }
+
+      // throw object
+      if (carrier.carrying && actions.has(ActionEnum.ACT)) {
+        let characterDir = animationStates[character.id].direction
+        let otherCharacter = characterMap.get(carrier.carrying)
+        Object.assign(otherCharacter, throwPhysics(character, characterDir, actions))
+        Object.assign(carrier, { carrying: undefined })
+        depths.update(otherCharacter.id)
+      }
     }
 
-    // throw object
-    if (playerActions.has(ActionEnum.THROW)) {
-      if(player.carrying === undefined) throw 'Wat throw fail'
-
-      let playerDir = animationStates[player.id].direction
-      let carried = characterMap.get(player.carrying)
-      Object.assign(carried, throwPhysics(player, playerDir, playerActions))
-      Object.assign(player, { carrying: undefined })
-      depths.update(carried.id)
+    // generate list of carried characters
+    let carried: Set<string> = new Set()
+    for (let [character, carrier] of characterCarriers(gameState)) {
+      if (carrier.carrying !== undefined)
+        carried.add(carrier.carrying)
     }
+    let isCarried = (id) => carried.has(id)
 
     // handle animation
     for (let character of allCharacters(gameState)) {
       animationStates[character.id] =
-        characterAnimation(animationStates[character.id], character, isGrounded(character), character.id === player.carrying, dt)
+        characterAnimation(
+          animationStates[character.id],
+          character,
+          isGrounded(character),
+          isCarried(character.id),
+          dt)
     }
 
     // handle world physics
@@ -1057,12 +1134,15 @@ $(document).ready(() => {
       Object.assign(character, clampFloor(character))
     }
 
+    // active area
+    let activeRoom = gameState.player.roomIndex
+
     // generate sprites
     let sprites: {[id: string]: Array<Sprite>} = {}
     for (let character: Character of allCharacters(gameState)) {
       let dRoom = computeRoomDistance(
         character.roomIndex,
-        player.roomIndex,
+        activeRoom,
         rooms.length)
 
       if (!shouldDrawCharacter(character, dRoom, ROOM_WIDTH))
@@ -1097,17 +1177,17 @@ $(document).ready(() => {
 
     // draw the background
     Canvas.drawBackground(buffer,
-      computeRoomColor(gameState.rooms[player.roomIndex]))
+      computeRoomColor(gameState.rooms[activeRoom]))
 
     // draw the floor
     Canvas.drawRect(buffer, '#ccc',
       transformRectToPixels({ x0: 0, y0: 0, x1: ROOM_WIDTH, y1: WALL_START_HEIGHT + 0.05 }))
-    Canvas.drawRect(buffer, computeFloorColor(gameState.rooms[player.roomIndex]),
+    Canvas.drawRect(buffer, computeFloorColor(gameState.rooms[activeRoom]),
       transformRectToPixels({ x0: 0, y0: 0, x1: ROOM_WIDTH, y1: WALL_START_HEIGHT }))
 
-    // draw the furnitures
+    // draw the Furnitures
     for (let furniture of gameState.furnitures) {
-      if (furniture.roomIndex != player.roomIndex) continue
+      if (furniture.roomIndex != activeRoom) continue
 
       let image = generateFurnitureImage(furniture, time)
       let rect = transformRectToPixels(generateFurnitureRect(furniture))
