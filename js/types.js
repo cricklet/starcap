@@ -5,25 +5,27 @@
 
 export let CrewEnum = {
   ENG: 'eng',
-  SCI: 'sci',
+  // SCI: 'sci',
   SEC: 'sec'
 }
 
 export type CrewEnumType =
   | 'eng'
-  | 'sci'
+  // | 'sci'
   | 'sec'
 
 export let RoomEnum = {
   BRIDGE: 'bridge',
   ENGINE: 'engine',
-  STORE: 'store'
+  STORE: 'store',
+  MEDBAY: 'medbay'
 }
 
 export type RoomEnumType =
   | 'bridge'
   | 'engine'
   | 'store'
+  | 'medbay'
 
 //// Unfortunately, the current version of flow doesn't support disjoint
 //// unions that involve intersections.

@@ -85,15 +85,6 @@ function initialGameState(): GameState {
         height: PLAYER_HEIGHT,
         roomIndex: 2,
         type: CrewEnum.SEC
-      },
-      {
-        kind: 'crew',
-        id: genId(),
-        x: 4, y: 0, vx: 0, vy: 0, ax: 0, ay: 0,
-        width: PLAYER_WIDTH,
-        height: PLAYER_HEIGHT,
-        roomIndex: 2,
-        type: CrewEnum.SCI
       }
     ],
     furnitures: [
@@ -101,7 +92,7 @@ function initialGameState(): GameState {
         kind: 'furniture',
         type: 'console_green',
         id: genId(),
-        x: 7,
+        x: 6.4,
         width: 8 * 0.12,
         height: 6 * 0.12,
         roomIndex: 0
@@ -110,7 +101,7 @@ function initialGameState(): GameState {
         kind: 'furniture',
         type: 'console_red',
         id: genId(),
-        x: 5.5,
+        x: 4.9,
         width: 8 * 0.12,
         height: 6 * 0.12,
         roomIndex: 0
@@ -137,10 +128,91 @@ function initialGameState(): GameState {
         kind: 'furniture',
         type: 'console_engine',
         id: genId(),
-        x: 4.5,
+        x: 4.52,
         width: 20 * 0.12,
         height: 11 * 0.12,
         roomIndex: 1
+      },
+      {
+        kind: 'furniture',
+        type: 'console_tall',
+        id: genId(),
+        x: 1.5,
+        width: 6 * 0.12,
+        height: 16 * 0.12,
+        roomIndex: 2
+      },
+      {
+        kind: 'furniture',
+        type: 'med_table',
+        id: genId(),
+        x: 3.1,
+        width: 12 * 0.12,
+        height: 6 * 0.12,
+        roomIndex: 2
+      },
+      {
+        kind: 'furniture',
+        type: 'chair_left',
+        id: genId(),
+        x: 4.6,
+        width: 6 * 0.12,
+        height: 8 * 0.12,
+        roomIndex: 2
+      },
+      {
+        kind: 'furniture',
+        type: 'med_cab',
+        id: genId(),
+        x: 5.5,
+        width: 6 * 0.12,
+        height: 12 * 0.12,
+        roomIndex: 2
+      },
+      {
+        kind: 'furniture',
+        type: 'chair',
+        id: genId(),
+        x: 6.6,
+        width: 6 * 0.12,
+        height: 8 * 0.12,
+        roomIndex: 2
+      },
+      {
+        kind: 'furniture',
+        type: 'teleporter',
+        id: genId(),
+        x: 2.5,
+        width: 17 * 0.12,
+        height: 16 * 0.12,
+        roomIndex: 3
+      },
+      {
+        kind: 'furniture',
+        type: 'sec_button',
+        id: genId(),
+        x: 4,
+        width: 6 * 0.12,
+        height: 6 * 0.12,
+        roomIndex: 3
+      },
+      {
+        kind: 'furniture',
+        type: 'eng_button',
+        id: genId(),
+        x: 4.8,
+        width: 6 * 0.12,
+        height: 6 * 0.12,
+        roomIndex: 3
+      },
+      {
+        kind: 'furniture',
+        type: 'console_blue',
+        id: genId(),
+        x: 6,
+        width: 8 * 0.12,
+        height: 6 * 0.12,
+        roomIndex: 3
       }
     ],
     rooms: [
@@ -151,18 +223,40 @@ function initialGameState(): GameState {
         type: RoomEnum.ENGINE
       },
       {
+        type: RoomEnum.MEDBAY
+      },
+      {
         type: RoomEnum.STORE
       }
     ]
   }
 }
 
+let DAMAGE_IMAGES = [
+  'damage0.png', 'damage1.png', 'damage2.png', 'damage3.png', 'damage4.png']
+
 let FURNITURE_IMAGES = {
   'console_red': ['img/console_red.png'],
   'console_green': ['img/console_green.png'],
   'screen': ['img/screen.png'],
   'core': ['img/core.png', 'img/core2.png', 'img/core3.png'],
-  'console_engine': ['img/console_engine.png']
+  'console_engine': ['img/console_engine.png'],
+  'console_tall': ['img/console_tall.png'],
+  'med_table': ['img/med_table.png'],
+  'console_weird': ['img/console_weird.png'],
+  'chair': ['img/chair.png'],
+  'chair_left': ['img/chair_left.png'],
+  'med_cab': ['img/med_cab.png'],
+  'teleporter': ['img/teleporter.png'],
+  'sec_button': ['img/sec_button.png'],
+  'eng_button': ['img/eng_button.png'],
+  'console_blue': ['img/console_blue.png'],
+}
+
+let ALT_IMAGES = {
+  'teleporter': ['img/teleporter_alt.png'],
+  'sec_button': ['img/sec_button_alt.png'],
+  'eng_button': ['img/eng_button_alt.png'],
 }
 
 function generateFurnitureImage(furniture: Furniture, time: number) {
@@ -269,7 +363,7 @@ function transformRectToPixels(rect: {x0:number, y0:number, x1:number, y1:number
 
 function crewMemberColor(crew: CrewMember): string {
   if (crew.type === CrewEnum.ENG) return 'rgb(223, 208, 0)'
-  if (crew.type === CrewEnum.SCI) return 'rgb(49, 61, 172)'
+  // if (crew.type === CrewEnum.SCI) return 'rgb(49, 61, 172)'
   if (crew.type === CrewEnum.SEC) return 'rgb(223, 0, 0)'
   throw "Unknown crew type"
 }
@@ -498,11 +592,11 @@ let ALTERNATE_BODY_COLORS: {[type: CrewEnumType]: Array<RGB>} = {
     {r:205,g:199,b:0},
     {r:228,g:220,b:0}
   ],
-  [CrewEnum.SCI]: [
-    {r:52,g:88,b:183},
-    {r:62,g:104,b:216},
-    {r:73,g:133,b:229}
-  ]
+  // [CrewEnum.SCI]: [
+  //   {r:52,g:88,b:183},
+  //   {r:62,g:104,b:216},
+  //   {r:73,g:133,b:229}
+  // ]
 }
 
 function generateRecolors(oldRGBs: Array<RGB>, newRGBs: Array<RGB>): Recolor {
@@ -552,7 +646,7 @@ function getCharacterColor(character: Character): string {
   if (character.kind === 'player') return 'rgb(154, 205, 50)'
   if (character.kind === 'crew') {
     if (character.type === CrewEnum.ENG) return 'rgb(223, 208, 0)'
-    if (character.type === CrewEnum.SCI) return 'rgb(49, 61, 172)'
+    // if (character.type === CrewEnum.SCI) return 'rgb(49, 61, 172)'
     if (character.type === CrewEnum.SEC) return 'rgb(223, 0, 0)'
     throw "Unknown crew type"
   }
@@ -566,13 +660,15 @@ function adjustFloorHeight(sprite: Sprite, floorHeight: number): { y0?: number, 
 function computeRoomColor(room: Room): string {
   if (room.type == RoomEnum.BRIDGE) return '#f8f8f8'
   if (room.type == RoomEnum.ENGINE) return '#fee'
-  if (room.type == RoomEnum.STORE) return '#efe'
+  if (room.type == RoomEnum.MEDBAY) return '#eef'
+  if (room.type == RoomEnum.STORE) return '#eff'
   throw "Unknown room"
 }
 
 function computeFloorColor(room: Room): string {
   if (room.type == RoomEnum.BRIDGE) return '#eee'
   if (room.type == RoomEnum.ENGINE) return '#eee'
+  if (room.type == RoomEnum.MEDBAY) return '#eee'
   if (room.type == RoomEnum.STORE) return '#eee'
   throw "Unknown room"
 }
