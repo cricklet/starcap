@@ -55,6 +55,7 @@ function stringToHash(s: string): number {
   }
   return hash;
 };
+
 function initialGameState(): GameState {
   return {
     player: {
@@ -122,6 +123,24 @@ function initialGameState(): GameState {
         width: 20 * 0.12,
         height: 16 * 0.12,
         roomIndex: 0
+      },
+      {
+        kind: 'furniture',
+        type: 'core',
+        id: genId(),
+        x: 2,
+        width: 24 * 0.12,
+        height: 16 * 0.12,
+        roomIndex: 1
+      },
+      {
+        kind: 'furniture',
+        type: 'console_engine',
+        id: genId(),
+        x: 4.5,
+        width: 20 * 0.12,
+        height: 11 * 0.12,
+        roomIndex: 1
       }
     ],
     rooms: [
@@ -138,8 +157,17 @@ function initialGameState(): GameState {
   }
 }
 
-function generateFurnitureImage(furniture: Furniture) {
-  return 'img/' + furniture.type + '.png'
+let FURNITURE_IMAGES = {
+  'console_red': ['img/console_red.png'],
+  'console_green': ['img/console_green.png'],
+  'screen': ['img/screen.png'],
+  'core': ['img/core.png', 'img/core2.png', 'img/core3.png'],
+  'console_engine': ['img/console_engine.png']
+}
+
+function generateFurnitureImage(furniture: Furniture, time: number) {
+  let images = FURNITURE_IMAGES[furniture.type]
+  return images[Math.floor((0.7 * time) % images.length)]
 }
 
 function generateFurnitureRect(furniture: Furniture) {
@@ -542,6 +570,13 @@ function computeRoomColor(room: Room): string {
   throw "Unknown room"
 }
 
+function computeFloorColor(room: Room): string {
+  if (room.type == RoomEnum.BRIDGE) return '#eee'
+  if (room.type == RoomEnum.ENGINE) return '#eee'
+  if (room.type == RoomEnum.STORE) return '#eee'
+  throw "Unknown room"
+}
+
 let PLAYER_SPEED = 8;
 let PLAYER_ACCEL = 30;
 let PLAYER_JUMP_SPEED = 7;
@@ -847,7 +882,11 @@ $(document).ready(() => {
   depths.add(gameState.player.id, 0)
   depths.observe(gameState.crew, (o) => o.id)
 
+  let time = 0
+
   let step = (dt) => {
+    time += dt
+
     let player = gameState.player
     let rooms = gameState.rooms
 
@@ -965,16 +1004,16 @@ $(document).ready(() => {
       computeRoomColor(gameState.rooms[player.roomIndex]))
 
     // draw the floor
-    Canvas.drawRect(buffer, '#ddd',
+    Canvas.drawRect(buffer, '#ccc',
       transformRectToPixels({ x0: 0, y0: 0, x1: ROOM_WIDTH, y1: WALL_START_HEIGHT + 0.05 }))
-    Canvas.drawRect(buffer, '#eee',
+    Canvas.drawRect(buffer, computeFloorColor(gameState.rooms[player.roomIndex]),
       transformRectToPixels({ x0: 0, y0: 0, x1: ROOM_WIDTH, y1: WALL_START_HEIGHT }))
 
     // draw the furnitures
     for (let furniture of gameState.furnitures) {
       if (furniture.roomIndex != player.roomIndex) continue
 
-      let image = generateFurnitureImage(furniture)
+      let image = generateFurnitureImage(furniture, time)
       let rect = transformRectToPixels(generateFurnitureRect(furniture))
       Canvas.drawImage(buffer, image, rect, {})
     }
