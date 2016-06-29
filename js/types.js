@@ -77,6 +77,24 @@ export type CrewMember = {
   components: {[kind: string]: Component},
 }
 
+export type Alien = {
+  kind: 'crew',
+  type: CrewEnumType,
+  // DRY, DRY, DRY
+  id: string,
+  x: number,
+  y: number,
+  ax: number,
+  ay: number,
+  vx: number,
+  vy: number,
+  width: number,
+  height: number,
+  roomIndex: number,
+
+  components: {[kind: string]: Component},
+}
+
 export type Character = Player | CrewMember
 
 export type Furniture = {
@@ -87,6 +105,8 @@ export type Furniture = {
   width: number,
   height: number,
   roomIndex: number,
+
+  components: {[kind: string]: FurnitureComponent},
 }
 
 export type Room = {
@@ -101,16 +121,16 @@ export type GameState = {
 }
 
 ////////////////////////////////////////////////////////////
-// Component types
+// Character components
 
-export let AnimationEnum = {
+export let CharacterAnimationEnum = {
   RUN: 'run',
   STAND: 'stand',
   SKID: 'skid',
   JUMP: 'jump'
 }
 
-export type Animation =
+export type CharacterAnimation =
   | 'run'
   | 'stand'
   | 'skid'
@@ -125,9 +145,9 @@ export type Direction =
   | 'left'
   | 'right'
 
-export type AnimationComponent = {
+export type CharacterAnimationComponent = {
   kind: 'animation',
-  animation: Animation,
+  animation: CharacterAnimation,
   direction: Direction,
   time: number
 }
@@ -136,7 +156,7 @@ export type ImagerComponent = {
   kind: 'imager',
   computeImage: (
     dir: Direction,
-    anim: Animation,
+    anim: CharacterAnimation,
     time: number
   ) => string
 }
@@ -150,11 +170,54 @@ export type CarriableComponent = {
   kind: 'carriable'
 }
 
+export type InteractorComponent = {
+  kind: 'interactor'
+}
+
+export type BeamingDownComponent = {
+  kind: 'beaming',
+  time: number
+}
+
 export type Component =
-  | AnimationComponent
+  | CharacterAnimationComponent
   | ImagerComponent
   | CarrierComponent
   | CarriableComponent
+  | InteractorComponent
+
+////////////////////////////////////////////////////////////
+// Furniture components
+
+export let SpawnEventEnum = {
+  SEC_TELEPORT: 'security teleporter',
+  ENG_TELEPORT: 'engineering teleporter'
+}
+
+export type SpawnEvent =
+  | 'security teleporter'
+  | 'engineering teleporter'
+
+export type FurnitureEvent =
+  | SpawnEvent
+
+export type ButtonComponent = {
+  kind: 'button',
+  eventToFire: FurnitureEvent,
+  time: number, // is -1 if no presses
+  notify: string
+}
+
+export type SpawnerComponent = {
+  kind: 'spawner',
+  events: Array<FurnitureEvent>,
+  spawn: (ev: FurnitureEvent) => Alien | CrewMember,
+  time: number // is -1 if no interactions
+}
+
+export type FurnitureComponent =
+  | ButtonComponent
+  | SpawnerComponent
 
 ////////////////////////////////////////////////////////////
 // Intermediate types

@@ -1,6 +1,6 @@
 /* @flow */
 
-import { ArrayObserver } from 'observe-js'
+import { ArrayObserver, ObjectObserver } from 'observe-js'
 
 // borrowed from: http://stackoverflow.com/questions/14810506/map-function-for-objects-instead-of-arrays
 export function mapObject(obj: Object, mapFunc: any): Object {
@@ -10,12 +10,29 @@ export function mapObject(obj: Object, mapFunc: any): Object {
   }, {});
 }
 
+export function valuesArray <V> (obj: {[key: string]: V}): Array<V> {
+  return Object.keys(obj).map(function(key) {return obj[key]})
+}
+
+export function valuesSet <V> (obj: {[key: string]: V}): Set<V> {
+  var set = new Set()
+  for (let k in obj) {
+    set.add(obj[k])
+  }
+  return set
+}
+
+export function hasValue <V> (obj: {[key: string]: V}, v: V): boolean {
+  return valuesSet(obj).has(v)
+}
+
 export function observeArray <O> (
   objects: Array<O>,
   onAdd: (obj: O) => void,
   onRemove: (obj: O) => void
 ): void {
-  new ArrayObserver(objects).open((splices) => {
+  let observer = new ArrayObserver(objects)
+  observer.open((splices) => {
     for (let splice of splices) {
       if (splice._removed) {
         for (let val of splice._removed) {
@@ -29,6 +46,22 @@ export function observeArray <O> (
       }
     }
   })
+  return observer
+}
+
+export function observeObject <O> (
+  object: O,
+  onKeyAdded: (obj: O, key: string) => void,
+  onKeyRemoved: (obj: O, key: string) => void,
+  onKeyChanged: (obj: O, key: string) => void
+): void {
+  let observer = new ObjectObserver(object)
+  observer.open(function(added, removed, changed, getOldValueFn) {
+    for (let key of Object.keys(added)) onKeyAdded(object, key)
+    for (let key of Object.keys(removed)) onKeyRemoved(object, key)
+    for (let key of Object.keys(changed)) onKeyChanged(object, key)
+  })
+  return observer
 }
 
 export class AutoMap<O> {
@@ -60,6 +93,64 @@ export class AutoMap<O> {
   }
   get(id: string): O {
     return this.map[id]
+  }
+}
+
+export class AutoArray<O> {
+  /*:: objects: Set<O>; */
+  /*:: observers: {[key: string]: ObjectObserver}; */
+  /*:: checker: (o: O) => boolean; */
+  /*:: hash: (o: O) => string; */
+
+  constructor(hash: (o: O) => string, checker: (o: O) => boolean) {
+    this.objects = new Set()
+    this.observers = {}
+    this.checker = checker
+    this.hash = hash
+  }
+  observe<OO>(objects: Array<OO & O>): void {
+    for (let obj of objects) {
+      this.watch(obj)
+    }
+    observeArray(
+      objects,
+      (o) => this.watch(o),
+      (o) => this.unwatch(o))
+  }
+  watch(object: O) {
+    let observer = observeObject(
+      object,
+      (o, addedKey) => this._update(o),
+      (o, removedKey) => this._update(o),
+      (o, changedKey) => {})
+
+    if (this.hash(object) in this.observers)
+      throw "Wat, should not be observing yet"
+
+    this.observers[this.hash(object)] = observer
+    this._update(object)
+  }
+  unwatch(object: O) {
+    if (!this.observers[this.hash(object)])
+      throw "Wat, we should be observing"
+
+    delete this.observers[this.hash(object)]
+    if (this.objects.has[object])
+      this.objects.delete(object)
+  }
+  _update(object: O) {
+    if (this.checker(object)) {
+      if (this.objects.has(object)) return
+      this.objects.add(object)
+    } else {
+      if (!this.objects.has(object)) return
+      this.objects.delete(object)
+    }
+  }
+  * all (): Iterable<O> {
+    for (let str of this.objects) {
+      yield str
+    }
   }
 }
 

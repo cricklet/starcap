@@ -10,7 +10,8 @@ import {
   RoomEnum,
   ActionEnum,
   DirectionEnum,
-  AnimationEnum
+  CharacterAnimationEnum,
+  SpawnEventEnum
 } from './types'
 
 import type {
@@ -24,13 +25,20 @@ import type {
   Furniture,
   RGB,
   Recolor,
-  AnimationComponent,
+  CharacterAnimationComponent,
   CarrierComponent,
-  Animation,
+  CharacterAnimation,
   Direction,
   ImagerComponent,
   CarriableComponent,
-  Component
+  Component,
+  FurnitureComponent,
+  FurnitureEvent,
+  InteractorComponent,
+  SpawnerComponent,
+  ButtonComponent,
+  Alien,
+  SpawnEvent
 } from './types'
 
 let FPS = 60.0;
@@ -46,6 +54,9 @@ let ROOM_HEIGHT = 2.5
 let FLOOR_HEIGHT = 0.3
 let FURNITURE_HEIGHT = 0.6
 let WALL_START_HEIGHT = 0.65
+
+let BUTTON_COOLOFF = 0.5
+let TELEPORT_COOLOFF = 0.3
 
 function transformToPixels(units) {return units * 75}
 function transformToUnits(pixels) {return pixels / 75.0}
@@ -65,11 +76,11 @@ function stringToHash(s: string): number {
   return hash;
 };
 
-function defaultAnimation(): AnimationComponent {
+function defaultAnimation(): CharacterAnimationComponent {
   return {
     kind: 'animation',
     direction: DirectionEnum.LEFT,
-    animation: AnimationEnum.STAND,
+    animation: CharacterAnimationEnum.STAND,
     time: 0
   }
 }
@@ -87,6 +98,45 @@ function defaultCarriable(): CarriableComponent {
   }
 }
 
+function defaultInteractor(): InteractorComponent {
+  return {
+    kind: 'interactor'
+  }
+}
+
+function generateCrewMember(
+  x: number,
+  roomIndex: number,
+  type: CrewEnumType
+): CrewMember {
+  return {
+    kind: 'crew',
+    id: genId(),
+    x: x, y: 0, vx: 0, vy: 0, ax: 0, ay: 0,
+    width: PLAYER_WIDTH,
+    height: PLAYER_HEIGHT,
+    roomIndex: roomIndex,
+    type: type,
+    components: {
+      'carriable': defaultCarriable(),
+      'animation': defaultAnimation(),
+    }
+  }
+}
+
+function generateSpawner(
+  x: number,
+  roomIndex: number
+): (ev: FurnitureEvent) => Alien | CrewMember {
+  return (ev: FurnitureEvent) => {
+    if (ev == SpawnEventEnum.SEC_TELEPORT)
+      generateCrewMember(x, roomIndex, CrewEnum.SEC)
+    if (ev == SpawnEventEnum.ENG_TELEPORT)
+      generateCrewMember(x, roomIndex, CrewEnum.ENG)
+    throw "Unknown spawn event"
+  }
+}
+
 function initialGameState(): GameState {
   return {
     player: {
@@ -99,34 +149,13 @@ function initialGameState(): GameState {
       components: {
         'animation': defaultAnimation(),
         'carrier': defaultCarrier(),
-        'imager': defaultImager(PLAYER_IMAGES)
+        'imager': defaultImager(PLAYER_IMAGES),
+        'interactor': defaultInteractor(),
       }
     },
     crew: [
-      {
-        kind: 'crew',
-        id: genId(),
-        x: 5, y: 0, vx: 0, vy: 0, ax: 0, ay: 0,
-        width: PLAYER_WIDTH,
-        height: PLAYER_HEIGHT,
-        roomIndex: 1,
-        type: CrewEnum.ENG,
-        components: {
-          'carriable': defaultCarriable()
-        }
-      },
-      {
-        kind: 'crew',
-        id: genId(),
-        x: 2, y: 0, vx: 0, vy: 0, ax: 0, ay: 0,
-        width: PLAYER_WIDTH,
-        height: PLAYER_HEIGHT,
-        roomIndex: 2,
-        type: CrewEnum.SEC,
-        components: {
-          'carriable': defaultCarriable()
-        }
-      }
+      generateCrewMember(5, 1, CrewEnum.ENG),
+      generateCrewMember(2, 2, CrewEnum.SEC),
     ],
     furnitures: [
       {
@@ -136,7 +165,8 @@ function initialGameState(): GameState {
         x: 6.4,
         width: 8 * 0.12,
         height: 6 * 0.12,
-        roomIndex: 0
+        roomIndex: 0,
+        components: {}
       },
       {
         kind: 'furniture',
@@ -145,7 +175,8 @@ function initialGameState(): GameState {
         x: 4.9,
         width: 8 * 0.12,
         height: 6 * 0.12,
-        roomIndex: 0
+        roomIndex: 0,
+        components: {}
       },
       {
         kind: 'furniture',
@@ -154,7 +185,8 @@ function initialGameState(): GameState {
         x: 2.5,
         width: 20 * 0.12,
         height: 16 * 0.12,
-        roomIndex: 0
+        roomIndex: 0,
+        components: {}
       },
       {
         kind: 'furniture',
@@ -163,7 +195,8 @@ function initialGameState(): GameState {
         x: 2,
         width: 24 * 0.12,
         height: 16 * 0.12,
-        roomIndex: 1
+        roomIndex: 1,
+        components: {}
       },
       {
         kind: 'furniture',
@@ -172,7 +205,8 @@ function initialGameState(): GameState {
         x: 4.52,
         width: 20 * 0.12,
         height: 11 * 0.12,
-        roomIndex: 1
+        roomIndex: 1,
+        components: {}
       },
       {
         kind: 'furniture',
@@ -181,7 +215,8 @@ function initialGameState(): GameState {
         x: 1.5,
         width: 6 * 0.12,
         height: 16 * 0.12,
-        roomIndex: 2
+        roomIndex: 2,
+        components: {}
       },
       {
         kind: 'furniture',
@@ -190,7 +225,8 @@ function initialGameState(): GameState {
         x: 3.1,
         width: 12 * 0.12,
         height: 6 * 0.12,
-        roomIndex: 2
+        roomIndex: 2,
+        components: {}
       },
       {
         kind: 'furniture',
@@ -199,7 +235,8 @@ function initialGameState(): GameState {
         x: 4.6,
         width: 6 * 0.12,
         height: 8 * 0.12,
-        roomIndex: 2
+        roomIndex: 2,
+        components: {}
       },
       {
         kind: 'furniture',
@@ -208,7 +245,8 @@ function initialGameState(): GameState {
         x: 5.5,
         width: 6 * 0.12,
         height: 12 * 0.12,
-        roomIndex: 2
+        roomIndex: 2,
+        components: {}
       },
       {
         kind: 'furniture',
@@ -217,16 +255,25 @@ function initialGameState(): GameState {
         x: 6.6,
         width: 6 * 0.12,
         height: 8 * 0.12,
-        roomIndex: 2
+        roomIndex: 2,
+        components: {}
       },
       {
         kind: 'furniture',
         type: 'teleporter',
-        id: genId(),
+        id: 'teleporter0',
         x: 2.5,
         width: 17 * 0.12,
         height: 16 * 0.12,
-        roomIndex: 3
+        roomIndex: 3,
+        components: {
+          spawner: {
+            kind: 'spawner',
+            events: [],
+            spawn: generateSpawner(2.5, 3),
+            time: -1
+          }
+        }
       },
       {
         kind: 'furniture',
@@ -235,7 +282,15 @@ function initialGameState(): GameState {
         x: 4,
         width: 6 * 0.12,
         height: 6 * 0.12,
-        roomIndex: 3
+        roomIndex: 3,
+        components: {
+          button: {
+            kind: 'button',
+            eventToFire: SpawnEventEnum.SEC_TELEPORT,
+            time: -1,
+            notify: 'teleporter0'
+          }
+        }
       },
       {
         kind: 'furniture',
@@ -244,7 +299,15 @@ function initialGameState(): GameState {
         x: 4.8,
         width: 6 * 0.12,
         height: 6 * 0.12,
-        roomIndex: 3
+        roomIndex: 3,
+        components: {
+          button: {
+            kind: 'button',
+            eventToFire: SpawnEventEnum.ENG_TELEPORT,
+            time: -1,
+            notify: 'teleporter0'
+          }
+        }
       },
       {
         kind: 'furniture',
@@ -253,7 +316,8 @@ function initialGameState(): GameState {
         x: 6,
         width: 8 * 0.12,
         height: 6 * 0.12,
-        roomIndex: 3
+        roomIndex: 3,
+        components: {}
       }
     ],
     rooms: [
@@ -294,7 +358,7 @@ let FURNITURE_IMAGES = {
   'console_blue': ['img/console_blue.png'],
 }
 
-let ALT_IMAGES = {
+let ACTIVE_IMAGES = {
   'teleporter': ['img/teleporter_alt.png'],
   'sec_button': ['img/sec_button_alt.png'],
   'eng_button': ['img/eng_button_alt.png'],
@@ -302,6 +366,19 @@ let ALT_IMAGES = {
 
 function generateFurnitureImage(furniture: Furniture, time: number) {
   let images = FURNITURE_IMAGES[furniture.type]
+
+  let button = furniture.components.button
+  if (button !== undefined && button.kind === 'button'
+      && isButtonPressed(button)) {
+    images = ACTIVE_IMAGES[furniture.type]
+  }
+
+  let spawner = furniture.components.spawner
+  if (spawner !== undefined && spawner.kind === 'spawner'
+      && isSpawnerActive(spawner)) {
+    images = ACTIVE_IMAGES[furniture.type]
+  }
+
   return images[Math.floor((0.7 * time) % images.length)]
 }
 
@@ -314,7 +391,7 @@ function generateFurnitureRect(furniture: Furniture) {
   }
 }
 
-type AnimationMap = {[anim: Animation]: Array<string>}
+type AnimationMap = {[anim: CharacterAnimation]: Array<string>}
 type OrientedAnimationMap = {[dir: Direction]: AnimationMap}
 
 function _generateAnimationMap(imagesMap: AnimationMap, oldStr: string, newStr: string): AnimationMap {
@@ -330,10 +407,10 @@ function _generateOrientedAnimationMap(dirImagesMap: OrientedAnimationMap, oldSt
 }
 
 let _RIGHT_PLAYER_IMAGES: AnimationMap = {
-  [AnimationEnum.RUN]: ['img/right_cap.png', 'img/right_cap_run_0.png'],
-  [AnimationEnum.STAND]: ['img/right_cap.png'],
-  [AnimationEnum.JUMP]: ['img/right_cap_run_0.png'],
-  [AnimationEnum.SKID]: ['img/right_cap.png'] }
+  [CharacterAnimationEnum.RUN]: ['img/right_cap.png', 'img/right_cap_run_0.png'],
+  [CharacterAnimationEnum.STAND]: ['img/right_cap.png'],
+  [CharacterAnimationEnum.JUMP]: ['img/right_cap_run_0.png'],
+  [CharacterAnimationEnum.SKID]: ['img/right_cap.png'] }
 
 let PLAYER_IMAGES = {
   [DirectionEnum.LEFT]:  _generateAnimationMap(_RIGHT_PLAYER_IMAGES,  'right', 'left'),
@@ -341,10 +418,10 @@ let PLAYER_IMAGES = {
 }
 
 let _RIGHT_ALIEN_IMAGES: AnimationMap = {
-  [AnimationEnum.RUN]: ['img/right_alien.png', 'img/right_alien_run_0.png'],
-  [AnimationEnum.STAND]: ['img/right_alien.png'],
-  [AnimationEnum.JUMP]: ['img/right_alien_run_0.png'],
-  [AnimationEnum.SKID]: ['img/right_alien.png'] }
+  [CharacterAnimationEnum.RUN]: ['img/right_alien.png', 'img/right_alien_run_0.png'],
+  [CharacterAnimationEnum.STAND]: ['img/right_alien.png'],
+  [CharacterAnimationEnum.JUMP]: ['img/right_alien_run_0.png'],
+  [CharacterAnimationEnum.SKID]: ['img/right_alien.png'] }
 
 let ALIEN_IMAGES = {
   [DirectionEnum.LEFT]:  _generateAnimationMap(_RIGHT_ALIEN_IMAGES,  'right', 'left'),
@@ -352,7 +429,7 @@ let ALIEN_IMAGES = {
 }
 
 function defaultImager(map: OrientedAnimationMap): ImagerComponent {
-  let computeImage = (dir: Direction, anim: Animation, time: number) => {
+  let computeImage = (dir: Direction, anim: CharacterAnimation, time: number) => {
     let i = Math.floor(time * ANIM_FPS + 0.25)
     let images = map[dir][anim]
     let image = images[i % images.length]
@@ -399,12 +476,12 @@ function sameSign(x, y) {
 }
 
 function characterAnimation(
-  oldAnimation: ?AnimationComponent,
+  oldAnimation: ?CharacterAnimationComponent,
   character: { vx: number, vy: number, ax: number, ay: number },
   isGrounded: boolean,
   isCarried: boolean,
   dt: number
-): AnimationComponent {
+): CharacterAnimationComponent {
   let isMoving = 0 < Math.abs(character.vx)
   let isAccelerating = 0 < Math.abs(character.ax)
   let isSpeedIncreasing = sameSign(character.vx, character.ax)
@@ -414,9 +491,9 @@ function characterAnimation(
   let movingLeft  = character.vx < - 0
   let movingRight = character.vx >   0
 
-  // Setup default Direction & Animation
+  // Setup default Direction & CharacterAnimation
   let direction = DirectionEnum.RIGHT
-  let animation = AnimationEnum.STAND
+  let animation = CharacterAnimationEnum.STAND
 
   if (oldAnimation) {
     animation = oldAnimation.animation
@@ -427,13 +504,13 @@ function characterAnimation(
   if (movingRight) direction = DirectionEnum.RIGHT
 
   if (isCarried) {
-    animation = AnimationEnum.STAND
+    animation = CharacterAnimationEnum.STAND
   } else if (!isGrounded) {
-    animation = AnimationEnum.JUMP
+    animation = CharacterAnimationEnum.JUMP
   } else {
-    if (slowingDown) animation = AnimationEnum.SKID
-    else if (isMoving) animation = AnimationEnum.RUN
-    else animation = AnimationEnum.STAND
+    if (slowingDown) animation = CharacterAnimationEnum.SKID
+    else if (isMoving) animation = CharacterAnimationEnum.RUN
+    else animation = CharacterAnimationEnum.STAND
   }
 
   let time = 0
@@ -484,7 +561,7 @@ function generateShadowSprite(
 }
 
 function computeAnimationImage(
-  animationState: AnimationComponent,
+  animationState: CharacterAnimationComponent,
   directionalImagesMap: OrientedAnimationMap
 ): string {
   let animation = animationState.animation
@@ -578,7 +655,7 @@ function generateCharacterSprite(
 function getOrientedAnimationMap(character: Character): OrientedAnimationMap {
   if (character.kind === 'player') return PLAYER_IMAGES
   if (character.kind === 'crew') return PLAYER_IMAGES
-  throw "Failed to get Animation map"
+  throw "Failed to get CharacterAnimation map"
 }
 
 let PERSON_COLORS: Array<RGB> = [
@@ -677,7 +754,7 @@ function getCharacterColor(character: Character): string {
     if (character.type === CrewEnum.SEC) return 'rgb(223, 0, 0)'
     throw "Unknown crew type"
   }
-  throw "Failed to get Animation map"
+  throw "Failed to get CharacterAnimation map"
 }
 
 function adjustFloorHeight(sprite: Sprite, floorHeight: number): { y0?: number, y1?: number } {
@@ -871,6 +948,38 @@ function throwPhysics(
   return { vx: vx, vy: vy }
 }
 
+function isButtonPressed(button: ButtonComponent): boolean {
+  return button.time < BUTTON_COOLOFF && button.time > 0
+}
+
+function isButtonPressable(button: ButtonComponent): boolean {
+  return !isButtonPressed(button)
+}
+
+function isSpawnerActive(spawner: SpawnerComponent): boolean {
+  return spawner.time < TELEPORT_COOLOFF && spawner.time > 0
+}
+
+function canInteract(
+  player: {x: number, y: number, width: number, height: number, roomIndex: number},
+  playerDirection: Direction,
+  object: {x: number, y: number, width: number, height: number, roomIndex: number}
+): boolean {
+  let overlap = rectsOverlap(player, object)
+  if (!overlap) return false
+
+  let dx = overlap.dx
+  let dy = overlap.dy
+
+  if (playerDirection === DirectionEnum.LEFT)
+    return dx < 0.2
+
+  if (playerDirection === DirectionEnum.RIGHT)
+    return dx > - 0.2
+
+  return false
+}
+
 function canPickup(
   player: Player,
   playerDirection: Direction,
@@ -884,19 +993,7 @@ function canPickup(
   if (player.roomIndex !== crewMember.roomIndex)
     return false
 
-  let overlap = rectsOverlap(player, crewMember)
-  if (!overlap) return false
-
-  let dx = overlap.dx
-  let dy = overlap.dy
-
-  if (playerDirection === DirectionEnum.LEFT)
-    return dx < 0.2
-
-  if (playerDirection === DirectionEnum.RIGHT)
-    return dx > - 0.2
-
-  return false
+  return canInteract(player, playerDirection, crewMember)
 }
 
 type KeysDown = {[key: string]: boolean}
@@ -1011,7 +1108,6 @@ $(document).ready(() => {
   let buffer: Canvas.Buffer = Canvas.createBuffer(CANVAS_WIDTH, CANVAS_HEIGHT)
 
   let gameState = initialGameState()
-  let animationStates: { [id: string]: AnimationComponent } = {}
   let characterActions: { [id: string]: Set<Action> } = {}
 
   let crewMap: Utils.AutoMap<CrewMember> = new Utils.AutoMap(o => o.id, gameState.crew)
@@ -1020,10 +1116,37 @@ $(document).ready(() => {
   characterMap.add(gameState.player)
   characterMap.observe(gameState.crew)
 
+  let furnitureMap: Utils.AutoMap<Furniture> = new Utils.AutoMap(o => o.id)
+  furnitureMap.observe(gameState.furnitures)
+
   // This gives us automatic randomized depths (i.e. z-distance) for each entity
   let depths: Utils.DepthArray = new Utils.DepthArray()
   depths.add(gameState.player.id, 0)
   depths.observe(gameState.crew, (o) => o.id)
+
+  // characters who can carry other characters
+  let carrierArray: Utils.AutoArray<Character> = new Utils.AutoArray(
+    o => o.id,
+    o => o.components.carrier !== undefined)
+  carrierArray.watch(gameState.player)
+  carrierArray.observe(gameState.crew)
+
+  // furnitures that can be interacted with
+  let interactorArray: Utils.AutoArray<Character> = new Utils.AutoArray(
+    o => o.id,
+    o => o.components.interactor !== undefined)
+  interactorArray.watch(gameState.player)
+  interactorArray.observe(gameState.crew)
+
+  let buttonArray: Utils.AutoArray<Furniture> = new Utils.AutoArray(
+    o => o.id,
+    o => o.components.button !== undefined)
+  buttonArray.observe(gameState.furnitures)
+
+  let spawnerArray: Utils.AutoArray<Furniture> = new Utils.AutoArray(
+    o => o.id,
+    o => o.components.spawner !== undefined)
+  spawnerArray.observe(gameState.furnitures)
 
   let time = 0
 
@@ -1047,7 +1170,13 @@ $(document).ready(() => {
     }
 
     // figure out if character can pick up any crew members
-    for (let [character, carrier] of characterCarriers(gameState)) {
+    for (let character of carrierArray.all()) {
+      let carrier = character.components.carrier
+      if (carrier === undefined || carrier.kind !== 'carrier') throw 'Wat, other bad carrier'
+
+      let animation = character.components.animation
+      if (animation === undefined || animation.kind !== 'animation') throw 'Wat, bad animation'
+
       let actions = characterActions[character.id]
 
       // skip if there's no carrying action
@@ -1064,7 +1193,7 @@ $(document).ready(() => {
         if (crewMember.components.carriable.kind !== 'carriable') throw 'Wat, carriable is broken'
 
         let pickup = canPickup(
-          character, animationStates[character.id].direction, isGrounded(character),
+          character, animation.direction, isGrounded(character),
           crewMember, isGrounded(crewMember))
 
         // pickup the crew member!
@@ -1077,6 +1206,90 @@ $(document).ready(() => {
       }
     }
 
+    // handle carrying & throwing
+    for (let character of carrierArray.all()) {
+      let carrier = character.components.carrier
+      if (carrier === undefined || carrier.kind !== 'carrier') throw 'Wat, most bad carrier'
+
+      let animation = character.components.animation
+      if (animation === undefined || animation.kind !== 'animation') throw 'Wat, bad animation'
+
+      let actions = characterActions[character.id]
+
+      // move carried object
+      if (carrier.carrying) {
+        let characterDir = animation.direction
+        let carriedEntity = characterMap.get(carrier.carrying)
+        Object.assign(carriedEntity, carryPhysics(character, carriedEntity, characterDir))
+      }
+
+      // throw object
+      if (carrier.carrying && actions.has(ActionEnum.ACT)) {
+        let characterDir = animation.direction
+        let otherCharacter = characterMap.get(carrier.carrying)
+        Object.assign(otherCharacter, throwPhysics(character, characterDir, actions))
+        Object.assign(carrier, { carrying: undefined })
+        depths.update(otherCharacter.id)
+        actions.delete(ActionEnum.ACT)
+      }
+    }
+
+    // figure out if there are buttons to be pressed
+    for (let character of interactorArray.all()) {
+      let interactor = character.components.interactor
+      if (interactor === undefined || interactor.kind !== 'interactor') throw 'Wat, terrible interactor'
+
+      let animation = character.components.animation
+      if (animation === undefined || animation.kind !== 'animation') throw 'Wat, bad animation'
+
+      let actions = characterActions[character.id]
+      let characterDir = animation.direction
+
+      // skip if there's no carrying action
+      if (!actions.has(ActionEnum.ACT)) continue
+
+      // loop through buttons
+      for (let furniture of buttonArray.all()) {
+        let button = furniture.components.button
+        if (button === undefined || button.kind !== 'button') throw 'Wat, bad button'
+
+        if (isButtonPressable(button) && canInteract(character, characterDir, {y: FURNITURE_HEIGHT, ...furniture})) {
+          button.time = 0
+          let buttonEvent = button.eventToFire
+
+          // it's a spawn event!
+          if (Utils.hasValue(SpawnEventEnum, buttonEvent)) {
+            // notify other furniture
+            let affectedFurniture = furnitureMap.get(button.notify)
+            let spawner = affectedFurniture.components.spawner
+            if (spawner === undefined || spawner.kind !== 'spawner')
+              throw 'Wat, bad spawner'
+
+            spawner.events.push(buttonEvent)
+            spawner.time = 0
+            console.log(spawner.events)
+          }
+        }
+      }
+    }
+
+    // increment furniture times
+    for (let furniture of buttonArray.all()) {
+      let button = furniture.components.button
+      if (button === undefined || button.kind !== 'button') throw 'Wat, bad button'
+
+      if (button.time >= 0)
+        button.time += dt
+    }
+
+    for (let furniture of spawnerArray.all()) {
+      let spawner = furniture.components.spawner
+      if (spawner === undefined || spawner.kind !== 'spawner') throw 'Wat, bad button'
+
+      if (spawner.time >= 0)
+        spawner.time += dt
+    }
+
     // handle character physics
     for (let character of allCharacters(gameState)) {
       let actions: Set<Action> = characterActions[character.id]
@@ -1085,44 +1298,32 @@ $(document).ready(() => {
       Object.assign(character, verticalCharacterPhysics(isGrounded(character), actions))
     }
 
-    // handle carrying & throwing
-    for (let [character, carrier] of characterCarriers(gameState)) {
-      let actions = characterActions[character.id]
-
-      // move carried object
-      if (carrier.carrying) {
-        let characterDir = animationStates[character.id].direction
-        let carriedEntity = characterMap.get(carrier.carrying)
-        Object.assign(carriedEntity, carryPhysics(character, carriedEntity, characterDir))
-      }
-
-      // throw object
-      if (carrier.carrying && actions.has(ActionEnum.ACT)) {
-        let characterDir = animationStates[character.id].direction
-        let otherCharacter = characterMap.get(carrier.carrying)
-        Object.assign(otherCharacter, throwPhysics(character, characterDir, actions))
-        Object.assign(carrier, { carrying: undefined })
-        depths.update(otherCharacter.id)
-      }
-    }
-
     // generate list of carried characters
     let carried: Set<string> = new Set()
-    for (let [character, carrier] of characterCarriers(gameState)) {
-      if (carrier.carrying !== undefined)
+    for (let character of carrierArray.all()) {
+      let carrier = character.components.carrier
+      if (carrier === undefined || carrier.kind !== 'carrier') throw 'Wat, bad carrier'
+      if (carrier.carrying !== undefined) {
         carried.add(carrier.carrying)
+      }
     }
     let isCarried = (id) => carried.has(id)
 
     // handle animation
     for (let character of allCharacters(gameState)) {
-      animationStates[character.id] =
+      let animation = character.components.animation
+      if (animation === undefined || animation.kind !== 'animation') throw 'Wat, bad animation'
+
+      Object.assign(
+        animation,
         characterAnimation(
-          animationStates[character.id],
+          animation,
           character,
           isGrounded(character),
           isCarried(character.id),
-          dt)
+          dt
+        )
+      )
     }
 
     // handle world physics
@@ -1140,6 +1341,9 @@ $(document).ready(() => {
     // generate sprites
     let sprites: {[id: string]: Array<Sprite>} = {}
     for (let character: Character of allCharacters(gameState)) {
+      let animation = character.components.animation
+      if (animation === undefined || animation.kind !== 'animation') throw 'Wat, bad animation'
+
       let dRoom = computeRoomDistance(
         character.roomIndex,
         activeRoom,
@@ -1148,7 +1352,7 @@ $(document).ready(() => {
       if (!shouldDrawCharacter(character, dRoom, ROOM_WIDTH))
         continue
 
-      let image = computeAnimationImage(animationStates[character.id], getOrientedAnimationMap(character))
+      let image = computeAnimationImage(animation, getOrientedAnimationMap(character))
       let color = getCharacterColor(character)
       let recolor: ?Recolor = computeImageRecolor(character)
       let scale = computeImageScale(character)
@@ -1185,7 +1389,7 @@ $(document).ready(() => {
     Canvas.drawRect(buffer, computeFloorColor(gameState.rooms[activeRoom]),
       transformRectToPixels({ x0: 0, y0: 0, x1: ROOM_WIDTH, y1: WALL_START_HEIGHT }))
 
-    // draw the Furnitures
+    // draw the furnitures
     for (let furniture of gameState.furnitures) {
       if (furniture.roomIndex != activeRoom) continue
 
