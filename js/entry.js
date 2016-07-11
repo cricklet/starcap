@@ -110,7 +110,7 @@ function defaultAI(): AIComponent {
   return {
     kind: 'ai',
     actions: [],
-    nextThink: 0
+    nextThink: Math.random() + 0.5
   }
 }
 
