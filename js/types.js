@@ -104,6 +104,7 @@ export type Furniture = {
   x: number,
   width: number,
   height: number,
+  foreground?: boolean,
   roomIndex: number,
 
   components: {[kind: string]: FurnitureComponent},
@@ -145,6 +146,17 @@ export type Direction =
   | 'left'
   | 'right'
 
+export type AIComponent = {
+  kind: 'ai',
+  actions: Array<Action>,
+  nextThink: number
+}
+
+export type ActorComponent = {
+  kind: 'actor',
+  actions: Set<Action>
+}
+
 export type CharacterAnimationComponent = {
   kind: 'animation',
   animation: CharacterAnimation,
@@ -185,6 +197,8 @@ export type Component =
   | CarrierComponent
   | CarriableComponent
   | InteractorComponent
+  | AIComponent
+  | ActorComponent
 
 ////////////////////////////////////////////////////////////
 // Furniture components
@@ -225,6 +239,8 @@ export type FurnitureComponent =
 export let ActionEnum = {
   LEFT: 'left',
   RIGHT: 'right',
+  SLOW_LEFT: 'slow-left',
+  SLOW_RIGHT: 'slow-right',
   UP: 'up',
   JUMP: 'jump',
   ACT: 'act'
@@ -236,7 +252,8 @@ export type Action = // yeah yeah, DRY :(
   | 'up'
   | 'jump'
   | 'act'
-
+  | 'slow-left'
+  | 'slow-right'
 ////////////////////////////////////////////////////////////
 // Rendering types
 

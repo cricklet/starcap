@@ -7,6 +7,7 @@
   "author": "Kenrick Rilee",
   "dev": {},
   "devDependencies": {
+    "array.observe": "0.0.1",
     "babel-core": "^6.9.1",
     "babel-loader": "^6.2.4",
     "babel-plugin-syntax-flow": "^6.8.0",
@@ -17,9 +18,8 @@
     "babel-preset-es2016": "^6.0.11",
     "flow-bin": "^0.27.0",
     "imports-loader": "^0.6.5",
+    "object.observe": "^0.2.6",
+    "observe-js": "^0.5.7",
     "webpack": "^1.13.1"
-  },
-  "dependencies": {
-    "observe-js": "^0.5.7"
   }
 }

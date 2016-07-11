@@ -1,6 +1,6 @@
 /* @flow */
 
-import { ArrayObserver, ObjectObserver } from 'observe-js'
+import { unobserveArray, observeArray, observeObject, Observer } from './observe'
 
 // borrowed from: http://stackoverflow.com/questions/14810506/map-function-for-objects-instead-of-arrays
 export function mapObject(obj: Object, mapFunc: any): Object {
@@ -26,44 +26,6 @@ export function hasValue <V> (obj: {[key: string]: V}, v: V): boolean {
   return valuesSet(obj).has(v)
 }
 
-export function observeArray <O> (
-  objects: Array<O>,
-  onAdd: (obj: O) => void,
-  onRemove: (obj: O) => void
-): void {
-  let observer = new ArrayObserver(objects)
-  observer.open((splices) => {
-    for (let splice of splices) {
-      if (splice._removed) {
-        for (let val of splice._removed) {
-          onRemove(val)
-        }
-      }
-      if (splice.addedCount) {
-        for (let i = 0; i < splice.addedCount; i ++) {
-          onAdd(objects[i + splice.index])
-        }
-      }
-    }
-  })
-  return observer
-}
-
-export function observeObject <O> (
-  object: O,
-  onKeyAdded: (obj: O, key: string) => void,
-  onKeyRemoved: (obj: O, key: string) => void,
-  onKeyChanged: (obj: O, key: string) => void
-): void {
-  let observer = new ObjectObserver(object)
-  observer.open(function(added, removed, changed, getOldValueFn) {
-    for (let key of Object.keys(added)) onKeyAdded(object, key)
-    for (let key of Object.keys(removed)) onKeyRemoved(object, key)
-    for (let key of Object.keys(changed)) onKeyChanged(object, key)
-  })
-  return observer
-}
-
 export class AutoMap<O> {
   // I REALLY REALLY want to test this code... but I don't want to deal with
   // setting up a testing framework right now...
@@ -80,7 +42,9 @@ export class AutoMap<O> {
     for (let obj of objects) {
       this.add(obj)
     }
-    observeArray(objects, this.add, this._remove)
+    observeArray(objects,
+      (o) => this.add(o),
+      (o) => this._remove(o))
   }
   hasKey(key: string): boolean {
     return key in this.map
@@ -98,7 +62,7 @@ export class AutoMap<O> {
 
 export class AutoArray<O> {
   /*:: objects: Set<O>; */
-  /*:: observers: {[key: string]: ObjectObserver}; */
+  /*:: observers: {[key: string]: [Observer, O]}; */
   /*:: checker: (o: O) => boolean; */
   /*:: hash: (o: O) => string; */
 
@@ -127,12 +91,15 @@ export class AutoArray<O> {
     if (this.hash(object) in this.observers)
       throw "Wat, should not be observing yet"
 
-    this.observers[this.hash(object)] = observer
+    this.observers[this.hash(object)] = [observer, object]
     this._update(object)
   }
   unwatch(object: O) {
     if (!this.observers[this.hash(object)])
       throw "Wat, we should be observing"
+
+    let oo = this.observers[this.hash(object)]
+    unobserveArray(oo[0], oo[1])
 
     delete this.observers[this.hash(object)]
     if (this.objects.has[object])

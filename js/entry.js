@@ -38,7 +38,9 @@ import type {
   SpawnerComponent,
   ButtonComponent,
   Alien,
-  SpawnEvent
+  SpawnEvent,
+  AIComponent,
+  ActorComponent
 } from './types'
 
 let FPS = 60.0;
@@ -56,7 +58,7 @@ let FURNITURE_HEIGHT = 0.6
 let WALL_START_HEIGHT = 0.65
 
 let BUTTON_COOLOFF = 0.5
-let TELEPORT_COOLOFF = 0.3
+let TELEPORT_COOLOFF = 0.5
 
 function transformToPixels(units) {return units * 75}
 function transformToUnits(pixels) {return pixels / 75.0}
@@ -104,6 +106,14 @@ function defaultInteractor(): InteractorComponent {
   }
 }
 
+function defaultAI(): AIComponent {
+  return {
+    kind: 'ai',
+    actions: [],
+    nextThink: 0
+  }
+}
+
 function generateCrewMember(
   x: number,
   roomIndex: number,
@@ -118,8 +128,10 @@ function generateCrewMember(
     roomIndex: roomIndex,
     type: type,
     components: {
-      'carriable': defaultCarriable(),
-      'animation': defaultAnimation(),
+      carriable: defaultCarriable(),
+      animation: defaultAnimation(),
+      ai: defaultAI(),
+      actor: defaultActor()
     }
   }
 }
@@ -129,11 +141,24 @@ function generateSpawner(
   roomIndex: number
 ): (ev: FurnitureEvent) => Alien | CrewMember {
   return (ev: FurnitureEvent) => {
+    let character;
+
     if (ev == SpawnEventEnum.SEC_TELEPORT)
-      generateCrewMember(x, roomIndex, CrewEnum.SEC)
+      character = generateCrewMember(x, roomIndex, CrewEnum.SEC)
     if (ev == SpawnEventEnum.ENG_TELEPORT)
-      generateCrewMember(x, roomIndex, CrewEnum.ENG)
-    throw "Unknown spawn event"
+      character = generateCrewMember(x, roomIndex, CrewEnum.ENG)
+
+    if (character === undefined)
+      throw "Unknown spawn event"
+
+    return Object.assign(character, {y: ROOM_HEIGHT})
+  }
+}
+
+function defaultActor(): ActorComponent {
+  return {
+    kind: 'actor',
+    actions: new Set()
   }
 }
 
@@ -147,10 +172,11 @@ function initialGameState(): GameState {
       height: PLAYER_HEIGHT,
       roomIndex: 0,
       components: {
-        'animation': defaultAnimation(),
-        'carrier': defaultCarrier(),
-        'imager': defaultImager(PLAYER_IMAGES),
-        'interactor': defaultInteractor(),
+        animation: defaultAnimation(),
+        carrier: defaultCarrier(),
+        imager: defaultImager(PLAYER_IMAGES),
+        interactor: defaultInteractor(),
+        actor: defaultActor()
       }
     },
     crew: [
@@ -262,6 +288,7 @@ function initialGameState(): GameState {
         kind: 'furniture',
         type: 'teleporter',
         id: 'teleporter0',
+        foreground: true,
         x: 2.5,
         width: 17 * 0.12,
         height: 16 * 0.12,
@@ -359,13 +386,18 @@ let FURNITURE_IMAGES = {
 }
 
 let ACTIVE_IMAGES = {
-  'teleporter': ['img/teleporter_alt.png'],
+  'teleporter': ['img/teleporter_alt.png', 'img/teleporter_alt2.png'],
   'sec_button': ['img/sec_button_alt.png'],
   'eng_button': ['img/eng_button_alt.png'],
 }
 
+let FURNITURE_ANIMATION_DT = {
+  'teleporter': 0.2
+}
+
 function generateFurnitureImage(furniture: Furniture, time: number) {
   let images = FURNITURE_IMAGES[furniture.type]
+  let dt = FURNITURE_ANIMATION_DT[furniture.type] || 1.0
 
   let button = furniture.components.button
   if (button !== undefined && button.kind === 'button'
@@ -379,7 +411,7 @@ function generateFurnitureImage(furniture: Furniture, time: number) {
     images = ACTIVE_IMAGES[furniture.type]
   }
 
-  return images[Math.floor((0.7 * time) % images.length)]
+  return images[Math.floor((time / dt) % images.length)]
 }
 
 function generateFurnitureRect(furniture: Furniture) {
@@ -777,6 +809,9 @@ function computeFloorColor(room: Room): string {
   throw "Unknown room"
 }
 
+let WALK_SPEED = 2;
+let WALK_ACCEL = 15;
+
 let PLAYER_SPEED = 8;
 let PLAYER_ACCEL = 30;
 let PLAYER_JUMP_SPEED = 7;
@@ -809,29 +844,37 @@ function canJump(character: {y: number, vy: number}): boolean {
 function horizontalCharacterPhysics(
   character: { vx: number }, actions: Set<Action>, isGrounded: boolean
 ): { ax: number, vx?: number } {
+  let isSlow = actions.has(ActionEnum.SLOW_LEFT) || actions.has(ActionEnum.SLOW_RIGHT)
+  let isFast = actions.has(ActionEnum.LEFT) || actions.has(ActionEnum.RIGHT)
+
+  if (isSlow && isFast) throw "Can't be fast and slow at same time..."
+
+  let SPEED = isSlow ? WALK_SPEED : PLAYER_SPEED
+  let ACCEL = isSlow ? WALK_ACCEL : PLAYER_ACCEL
+
   let dplayer = {}
   dplayer.ax = 0
 
-  let left  = actions.has(ActionEnum.LEFT)
-  let right = actions.has(ActionEnum.RIGHT)
+  let left  = actions.has(ActionEnum.LEFT) || actions.has(ActionEnum.SLOW_LEFT)
+  let right = actions.has(ActionEnum.RIGHT) || actions.has(ActionEnum.SLOW_RIGHT)
 
-  let maxVelocity = Math.abs(character.vx) > PLAYER_SPEED
+  let maxVelocity = Math.abs(character.vx) > SPEED
   let movingRight = character.vx >   0
   let movingLeft  = character.vx < - 0
   let maxRight = movingRight && maxVelocity
   let maxLeft  = movingLeft  && maxVelocity
 
-  if (left && !right && !maxLeft ) dplayer.ax = - PLAYER_ACCEL // move left
-  if (right && !left && !maxRight) dplayer.ax =   PLAYER_ACCEL // move right
+  if (left && !right && !maxLeft ) dplayer.ax = - ACCEL // move left
+  if (right && !left && !maxRight) dplayer.ax =   ACCEL // move right
 
   if ((left === right) && isGrounded) { // skid to a stop
-    if (movingRight) dplayer.ax = - PLAYER_ACCEL
-    if (movingLeft)  dplayer.ax =   PLAYER_ACCEL
+    if (movingRight) dplayer.ax = - ACCEL
+    if (movingLeft)  dplayer.ax =   ACCEL
   }
 
   if (isGrounded && maxVelocity) { // terminal velocity on ground
-    if (movingRight) dplayer.vx =   PLAYER_SPEED
-    if (movingLeft)  dplayer.vx = - PLAYER_SPEED
+    if (movingRight) dplayer.vx =   SPEED
+    if (movingLeft)  dplayer.vx = - SPEED
   }
 
   return dplayer
@@ -1108,7 +1151,6 @@ $(document).ready(() => {
   let buffer: Canvas.Buffer = Canvas.createBuffer(CANVAS_WIDTH, CANVAS_HEIGHT)
 
   let gameState = initialGameState()
-  let characterActions: { [id: string]: Set<Action> } = {}
 
   let crewMap: Utils.AutoMap<CrewMember> = new Utils.AutoMap(o => o.id, gameState.crew)
 
@@ -1130,6 +1172,18 @@ $(document).ready(() => {
     o => o.components.carrier !== undefined)
   carrierArray.watch(gameState.player)
   carrierArray.observe(gameState.crew)
+
+  // engineers
+  let engineerArray: Utils.AutoArray<CrewMember> = new Utils.AutoArray(
+    o => o.id,
+    o => o.type === CrewEnum.ENG)
+  engineerArray.observe(gameState.crew)
+
+  // security
+  let securityArray: Utils.AutoArray<CrewMember> = new Utils.AutoArray(
+    o => o.id,
+    o => o.type === CrewEnum.SEC)
+  securityArray.observe(gameState.crew)
 
   // furnitures that can be interacted with
   let interactorArray: Utils.AutoArray<Character> = new Utils.AutoArray(
@@ -1155,17 +1209,55 @@ $(document).ready(() => {
 
     let rooms = gameState.rooms
 
-    {
+    for (let character of allCharacters(gameState)) {
+      let actor = character.components.actor
+      if (actor === undefined || actor.kind !== 'actor') throw 'Wat, bad actor'
+
+      actor.actions.clear()
+    }
+
+    { // player actions
       let player = gameState.player
+      let actor = player.components.actor
+      if (actor === undefined || actor.kind !== 'actor') throw 'Wat, bad actor'
 
-      // Actions: wasd
-      let playerActions: Set<Action> = thinkPlayerLocomotion(keysDown, canJump(player))
-      characterActions[player.id] = playerActions
+      // actions: wasd
+      actor.actions = thinkPlayerLocomotion(keysDown, canJump(player))
 
-      // Actions: carry or throw
+      // actions: carry or throw
       if (keysPressed.has(' ')) {
-        playerActions.add(ActionEnum.ACT)
+        actor.actions.add(ActionEnum.ACT)
         keysPressed.delete(' ')
+      }
+    }
+
+    // engineer actions
+    for (let character of gameState.crew) {
+      let ai = character.components.ai
+      if (ai === undefined || ai.kind !== 'ai') throw 'Wat, bad ai'
+
+      let actor = character.components.actor
+      if (actor === undefined || actor.kind !== 'actor') throw 'Wat, bad actor'
+
+      ai.nextThink -= dt
+
+      // not time to think yet
+      if (ai.nextThink > 0) {
+        for (let action of ai.actions) {
+          actor.actions.add(action)
+        }
+      } else {
+        let choice = Math.random()
+        if (choice < 0.2) {
+          ai.actions = [ActionEnum.SLOW_LEFT]
+          ai.nextThink = Math.random() + 0.5
+        } else if (choice < 0.4) {
+          ai.actions = [ActionEnum.SLOW_RIGHT]
+          ai.nextThink = Math.random() + 0.5
+        } else {
+          ai.actions = []
+          ai.nextThink = Math.random() + 0.75
+        }
       }
     }
 
@@ -1177,10 +1269,11 @@ $(document).ready(() => {
       let animation = character.components.animation
       if (animation === undefined || animation.kind !== 'animation') throw 'Wat, bad animation'
 
-      let actions = characterActions[character.id]
+      let actor = character.components.actor
+      if (actor === undefined || actor.kind !== 'actor') throw 'Wat, bad actor'
 
       // skip if there's no carrying action
-      if (!actions.has(ActionEnum.ACT)) continue
+      if (!actor.actions.has(ActionEnum.ACT)) continue
 
       // shouldn't be already carrying something
       if (carrier.carrying !== undefined) continue
@@ -1200,7 +1293,7 @@ $(document).ready(() => {
         if (pickup) {
           Object.assign(carrier, { carrying: crewMember.id })
           depths.update(crewMember.id, -0.05)
-          actions.delete(ActionEnum.ACT)
+          actor.actions.delete(ActionEnum.ACT)
           break
         }
       }
@@ -1214,7 +1307,8 @@ $(document).ready(() => {
       let animation = character.components.animation
       if (animation === undefined || animation.kind !== 'animation') throw 'Wat, bad animation'
 
-      let actions = characterActions[character.id]
+      let actor = character.components.actor
+      if (actor === undefined || actor.kind !== 'actor') throw 'Wat, bad actor'
 
       // move carried object
       if (carrier.carrying) {
@@ -1224,13 +1318,13 @@ $(document).ready(() => {
       }
 
       // throw object
-      if (carrier.carrying && actions.has(ActionEnum.ACT)) {
+      if (carrier.carrying && actor.actions.has(ActionEnum.ACT)) {
         let characterDir = animation.direction
         let otherCharacter = characterMap.get(carrier.carrying)
-        Object.assign(otherCharacter, throwPhysics(character, characterDir, actions))
+        Object.assign(otherCharacter, throwPhysics(character, characterDir, actor.actions))
         Object.assign(carrier, { carrying: undefined })
         depths.update(otherCharacter.id)
-        actions.delete(ActionEnum.ACT)
+        actor.actions.delete(ActionEnum.ACT)
       }
     }
 
@@ -1242,11 +1336,13 @@ $(document).ready(() => {
       let animation = character.components.animation
       if (animation === undefined || animation.kind !== 'animation') throw 'Wat, bad animation'
 
-      let actions = characterActions[character.id]
+      let actor = character.components.actor
+      if (actor === undefined || actor.kind !== 'actor') throw 'Wat, bad actor'
+
       let characterDir = animation.direction
 
       // skip if there's no carrying action
-      if (!actions.has(ActionEnum.ACT)) continue
+      if (!actor.actions.has(ActionEnum.ACT)) continue
 
       // loop through buttons
       for (let furniture of buttonArray.all()) {
@@ -1267,9 +1363,22 @@ $(document).ready(() => {
 
             spawner.events.push(buttonEvent)
             spawner.time = 0
-            console.log(spawner.events)
+            actor.actions.delete(ActionEnum.ACT)
+            break
           }
         }
+      }
+    }
+
+    // spawn characters
+    for (let furniture of spawnerArray.all()) {
+      let spawner = furniture.components.spawner
+      if (spawner === undefined || spawner.kind !== 'spawner') throw 'Wat, bad spawner'
+
+      while (spawner.events.length > 0) {
+        let event = spawner.events.pop()
+        let obj = spawner.spawn(event)
+        if (obj.kind === 'crew') gameState.crew.push(obj)
       }
     }
 
@@ -1292,10 +1401,11 @@ $(document).ready(() => {
 
     // handle character physics
     for (let character of allCharacters(gameState)) {
-      let actions: Set<Action> = characterActions[character.id]
-      if (actions === undefined) actions = new Set()
-      Object.assign(character, horizontalCharacterPhysics(character, actions, isGrounded(character)))
-      Object.assign(character, verticalCharacterPhysics(isGrounded(character), actions))
+      let actor = character.components.actor
+      if (actor === undefined || actor.kind !== 'actor') throw 'Wat, bad actor'
+
+      Object.assign(character, horizontalCharacterPhysics(character, actor.actions, isGrounded(character)))
+      Object.assign(character, verticalCharacterPhysics(isGrounded(character), actor.actions))
     }
 
     // generate list of carried characters
@@ -1389,13 +1499,17 @@ $(document).ready(() => {
     Canvas.drawRect(buffer, computeFloorColor(gameState.rooms[activeRoom]),
       transformRectToPixels({ x0: 0, y0: 0, x1: ROOM_WIDTH, y1: WALL_START_HEIGHT }))
 
-    // draw the furnitures
-    for (let furniture of gameState.furnitures) {
-      if (furniture.roomIndex != activeRoom) continue
-
+    let drawFurniture = (furniture: Furniture) => {
+      if (furniture.roomIndex != activeRoom) return
       let image = generateFurnitureImage(furniture, time)
       let rect = transformRectToPixels(generateFurnitureRect(furniture))
       Canvas.drawImage(buffer, image, rect, {})
+    }
+
+    // draw the background furnitures
+    for (let furniture of gameState.furnitures) {
+      if (furniture.foreground !== true)
+        drawFurniture(furniture)
     }
 
     // draw the sprites in reverse depth order
@@ -1406,6 +1520,12 @@ $(document).ready(() => {
         else
           Canvas.drawImage(buffer, sprite.image, transformRectToPixels(sprite), sprite)
       }
+    }
+
+    // draw the foreground furnitures
+    for (let furniture of gameState.furnitures) {
+      if (furniture.foreground === true)
+        drawFurniture(furniture)
     }
 
     Canvas.drawBuffer(screen, buffer)
