@@ -1352,11 +1352,12 @@ $(document).ready(() => {
         if (isButtonPressable(button) && canInteract(character, characterDir, {y: FURNITURE_HEIGHT, ...furniture})) {
           button.time = 0
           let buttonEvent = button.eventToFire
+          let buttonAffects = button.notify
 
           // it's a spawn event!
           if (Utils.hasValue(SpawnEventEnum, buttonEvent)) {
             // notify other furniture
-            let affectedFurniture = furnitureMap.get(button.notify)
+            let affectedFurniture = furnitureMap.get(buttonAffects)
             let spawner = affectedFurniture.components.spawner
             if (spawner === undefined || spawner.kind !== 'spawner')
               throw 'Wat, bad spawner'
