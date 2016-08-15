@@ -1,5 +1,53 @@
 /* @flow */
 
+type X = { a: number, kind: 'x' } & C
+type Y = { b: string, kind: 'y' } & C
+
+type Z = X | Y
+type C = {
+  a?: number,
+  b?: string
+}
+
+var x: X = { a: 123, kind: 'x' }
+var y: Y = { b: 'asdf', kind: 'y' }
+
+var z: Z = { a: 123, kind: 'x' }
+if (z.b) { z.b += ' qwerty' }
+
+if (x.b) { }
+
+//
+
+
+export type Foo = {
+  kind: 'foo',
+}
+
+export type Bar = {
+  kind: 'bar',
+}
+
+export type FooBar = Foo | Bar
+
+function xyz (x: FooBar) {
+  if (x.kind === 'foo') {
+    let foo: Foo = x;
+  }
+  if (x.kind === 'bar') {
+    let bar: Bar = x;
+  }
+}
+
+function xyz(character: Character) {
+  if (character.kind === 'player') {
+    let player: Player = character;
+  }
+  if (character.kind === 'crew') {
+    let crew: CrewMember = character;
+  }
+}
+
 ////////////////////////////////////////////////////////////
 // Game state types
 
@@ -56,7 +104,12 @@ export type Player = {
   height: number,
   roomIndex: number,
 
-  components: {[kind: string]: Component},
+  // required components
+  animation: CharacterAnimationComponent,
+  imager: ImagerComponent,
+  carrier: CarrierComponent,
+  interactor: InteractorComponent,
+  actor: ActorComponent,
 }
 
 export type CrewMember = {
@@ -74,12 +127,15 @@ export type CrewMember = {
   height: number,
   roomIndex: number,
 
-  components: {[kind: string]: Component},
+  // required components
+  carriable: CarriableComponent,
+  animation: CharacterAnimationComponent,
+  ai: AIComponent,
+  actor: ActorComponent,
 }
 
 export type Alien = {
-  kind: 'crew',
-  type: CrewEnumType,
+  kind: 'alien',
   // DRY, DRY, DRY
   id: string,
   x: number,
@@ -91,8 +147,6 @@ export type Alien = {
   width: number,
   height: number,
   roomIndex: number,
-
-  components: {[kind: string]: Component},
 }
 
 export type Character = Player | CrewMember
@@ -107,7 +161,8 @@ export type Furniture = {
   foreground?: boolean,
   roomIndex: number,
 
-  components: {[kind: string]: FurnitureComponent},
+  spawner?: SpawnerComponent,
+  button?: ButtonComponent,
 }
 
 export type Room = {
@@ -228,10 +283,6 @@ export type SpawnerComponent = {
   spawn: (ev: FurnitureEvent) => Alien | CrewMember,
   time: number // is -1 if no interactions
 }
-
-export type FurnitureComponent =
-  | ButtonComponent
-  | SpawnerComponent
 
 ////////////////////////////////////////////////////////////
 // Intermediate types

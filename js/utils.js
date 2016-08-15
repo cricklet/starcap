@@ -60,24 +60,26 @@ export class AutoMap<O> {
   }
 }
 
-export class AutoArray<O> {
-  /*:: objects: Set<O>; */
-  /*:: observers: {[key: string]: [Observer, O]}; */
-  /*:: checker: (o: O) => boolean; */
+export class AutoArray<O, R> {
+  /*:: observers: {[key: string]: Observer }; */
+  /*:: objects: {[key: string]: O }; */
+  /*:: results: {[key: string]: R }; */
+  /*:: processor: (o: O) => ?R; */
   /*:: hash: (o: O) => string; */
 
-  constructor(hash: (o: O) => string, checker: (o: O) => boolean) {
-    this.objects = new Set()
+  constructor(hash: (o: O) => string, processor: (o: O) => ?R) {
     this.observers = {}
-    this.checker = checker
+    this.objects = {}
+    this.results = {}
+    this.processor = processor
     this.hash = hash
   }
-  observe<OO>(objects: Array<OO & O>): void {
-    for (let obj of objects) {
+  observe<OO>(observables: Array<OO & O>): void {
+    for (let obj of observables) {
       this.watch(obj)
     }
     observeArray(
-      objects,
+      observables,
       (o) => this.watch(o),
       (o) => this.unwatch(o))
   }
@@ -88,35 +90,51 @@ export class AutoArray<O> {
       (o, removedKey) => this._update(o),
       (o, changedKey) => {})
 
-    if (this.hash(object) in this.observers)
+    let h = this.hash(object)
+
+    if (h in this.observers)
       throw "Wat, should not be observing yet"
 
-    this.observers[this.hash(object)] = [observer, object]
+    this.observers[h] = observer
+    this.objects[h] = object
     this._update(object)
   }
   unwatch(object: O) {
-    if (!this.observers[this.hash(object)])
+    let h = this.hash(object)
+
+    if (!(h in this.observers))
       throw "Wat, we should be observing"
 
-    let oo = this.observers[this.hash(object)]
-    unobserveArray(oo[0], oo[1])
+    unobserveArray(this.observers[h], object)
 
-    delete this.observers[this.hash(object)]
-    if (this.objects.has[object])
-      this.objects.delete(object)
+    delete this.observers[h]
+    delete this.objects[h]
+    if (h in this.results)
+      delete this.results[h]
   }
   _update(object: O) {
-    if (this.checker(object)) {
-      if (this.objects.has(object)) return
-      this.objects.add(object)
+    let result = this.processor(object)
+    let h = this.hash(object)
+
+    if (result) {
+      if (h in this.results) return
+      this.results[h] = result
     } else {
-      if (!this.objects.has(object)) return
-      this.objects.delete(object)
+      if (h in this.results)
+        delete this.results[h]
     }
   }
-  * all (): Iterable<O> {
-    for (let str of this.objects) {
-      yield str
+  * all (): Iterable<[O, R]> {
+    for (let h in this.results) {
+      let object: O = this.objects[h]
+      let result: R = this.results[h]
+      yield [object, result]
+    }
+  }
+  * objects (): Iterable<O> {
+    for (let h in this.results) {
+      let object: O = this.objects[h]
+      yield object
     }
   }
 }
@@ -194,4 +212,10 @@ export function * zip<A,B>(as: Array<A>, bs: Array<B>): Iterable<[A,B]> {
 export function * combine<A,B>(as: Array<A>, bs: Array<B>): Iterable<A|B> {
   for (let a of as) yield a
   for (let b of bs) yield b
+}
+
+export function Get(o: {}, k: string) {
+  // necessary for weird flow reasons
+  if (k in o) return o[k]
+  return undefined
 }

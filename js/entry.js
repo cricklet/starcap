@@ -32,7 +32,6 @@ import type {
   ImagerComponent,
   CarriableComponent,
   Component,
-  FurnitureComponent,
   FurnitureEvent,
   InteractorComponent,
   SpawnerComponent,
@@ -127,12 +126,12 @@ function generateCrewMember(
     height: PLAYER_HEIGHT,
     roomIndex: roomIndex,
     type: type,
-    components: {
-      carriable: defaultCarriable(),
-      animation: defaultAnimation(),
-      ai: defaultAI(),
-      actor: defaultActor()
-    }
+
+    // components
+    carriable: defaultCarriable(),
+    animation: defaultAnimation(),
+    ai: defaultAI(),
+    actor: defaultActor()
   }
 }
 
@@ -171,13 +170,13 @@ function initialGameState(): GameState {
       width: PLAYER_WIDTH,
       height: PLAYER_HEIGHT,
       roomIndex: 0,
-      components: {
-        animation: defaultAnimation(),
-        carrier: defaultCarrier(),
-        imager: defaultImager(PLAYER_IMAGES),
-        interactor: defaultInteractor(),
-        actor: defaultActor()
-      }
+
+      // components
+      animation: defaultAnimation(),
+      carrier: defaultCarrier(),
+      imager: defaultImager(PLAYER_IMAGES),
+      interactor: defaultInteractor(),
+      actor: defaultActor()
     },
     crew: [
       generateCrewMember(5, 1, CrewEnum.ENG),
@@ -399,15 +398,13 @@ function generateFurnitureImage(furniture: Furniture, time: number) {
   let images = FURNITURE_IMAGES[furniture.type]
   let dt = FURNITURE_ANIMATION_DT[furniture.type] || 1.0
 
-  let button = furniture.components.button
-  if (button !== undefined && button.kind === 'button'
-      && isButtonPressed(button)) {
+  let button: ?ButtonComponent = furniture.button
+  if (button && isButtonPressed(button)) {
     images = ACTIVE_IMAGES[furniture.type]
   }
 
-  let spawner = furniture.components.spawner
-  if (spawner !== undefined && spawner.kind === 'spawner'
-      && isSpawnerActive(spawner)) {
+  let spawner: ?SpawnerComponent = furniture.spawner
+  if (spawner && isSpawnerActive(spawner)) {
     images = ACTIVE_IMAGES[furniture.type]
   }
 
@@ -760,9 +757,11 @@ function computeImageScale(character: Character): number {
 
 function computeImageRecolor(character: Character): ?Recolor {
   let recolors: Array<Recolor> = [];
+
   if (character.kind === 'crew') {
+    let crew: CrewMember = character;
     recolors.push(
-      generateRecolors(BODY_COLORS, ALTERNATE_BODY_COLORS[character.type]))
+      generateRecolors(BODY_COLORS, ALTERNATE_BODY_COLORS[crew.type]))
   }
 
   recolors.push(
@@ -781,9 +780,10 @@ function computeImageRecolor(character: Character): ?Recolor {
 function getCharacterColor(character: Character): string {
   if (character.kind === 'player') return 'rgb(154, 205, 50)'
   if (character.kind === 'crew') {
-    if (character.type === CrewEnum.ENG) return 'rgb(223, 208, 0)'
-    // if (character.type === CrewEnum.SCI) return 'rgb(49, 61, 172)'
-    if (character.type === CrewEnum.SEC) return 'rgb(223, 0, 0)'
+    let crew: CrewMember = character;
+    if (crew.type === CrewEnum.ENG) return 'rgb(223, 208, 0)'
+    // if (crew.type === CrewEnum.SCI) return 'rgb(49, 61, 172)'
+    if (crew.type === CrewEnum.SEC) return 'rgb(223, 0, 0)'
     throw "Unknown crew type"
   }
   throw "Failed to get CharacterAnimation map"
@@ -1024,7 +1024,7 @@ function canInteract(
 }
 
 function canPickup(
-  player: Player,
+  character: Character,
   playerDirection: Direction,
   playerGrounded: boolean,
   crewMember: CrewMember,
@@ -1033,10 +1033,10 @@ function canPickup(
   if (!playerGrounded || !crewGrounded)
     return false
 
-  if (player.roomIndex !== crewMember.roomIndex)
+  if (character.roomIndex !== crewMember.roomIndex)
     return false
 
-  return canInteract(player, playerDirection, crewMember)
+  return canInteract(character, playerDirection, crewMember)
 }
 
 type KeysDown = {[key: string]: boolean}
@@ -1110,24 +1110,21 @@ function * allCharacters(gameState: GameState): Iterator<Character> {
   yield gameState.player
 }
 
-function * charactersWithComponent(gameState: GameState, kind: string): Iterable<[Character, Component]> {
-  for (let character of allCharacters(gameState)) {
-    if (kind in character.components) {
-      let component = character.components[kind]
-      if (kind != component.kind)
-        throw "Wat, component has wrong type: " + component.kind + " != " + kind
-
-      yield [character, character.components[kind]]
-    }
-  }
-}
+// function * charactersWithComponent(gameState: GameState, kind: string): Iterable<[Character, Component]> {
+//   for (let character of allCharacters(gameState)) {
+//     if (kind in character.components) {
+//       let component = character.components[kind]
+//       if (kind != component.kind)
+//         throw "Wat, component has wrong type: " + component.kind + " != " + kind
+//
+//       yield [character, character.components[kind]]
+//     }
+//   }
+// }
 
 function * characterCarriers(gameState: GameState): Iterable<[Character, CarrierComponent]> {
-  let character = gameState.player
-  if (!character.components.carrier) throw 'Wat, player should be carrier'
-
-  let carrier = character.components.carrier
-  if (carrier.kind !== 'carrier') throw 'Wat, carrier component is wrong'
+  let character: Player = gameState.player
+  let carrier: CarrierComponent = character.carrier
 
   yield [character, carrier]
 }
@@ -1167,59 +1164,55 @@ $(document).ready(() => {
   depths.observe(gameState.crew, (o) => o.id)
 
   // characters who can carry other characters
-  let carrierArray: Utils.AutoArray<Character> = new Utils.AutoArray(
+  let carrierArray: Utils.AutoArray<Character, CarrierComponent> = new Utils.AutoArray(
     o => o.id,
-    o => o.components.carrier !== undefined)
+    o => Utils.Get(o, 'carrier'));
   carrierArray.watch(gameState.player)
   carrierArray.observe(gameState.crew)
 
   // engineers
-  let engineerArray: Utils.AutoArray<CrewMember> = new Utils.AutoArray(
+  let engineerArray: Utils.AutoArray<CrewMember, bool> = new Utils.AutoArray(
     o => o.id,
     o => o.type === CrewEnum.ENG)
   engineerArray.observe(gameState.crew)
 
   // security
-  let securityArray: Utils.AutoArray<CrewMember> = new Utils.AutoArray(
+  let securityArray: Utils.AutoArray<CrewMember, bool> = new Utils.AutoArray(
     o => o.id,
     o => o.type === CrewEnum.SEC)
   securityArray.observe(gameState.crew)
 
   // furnitures that can be interacted with
-  let interactorArray: Utils.AutoArray<Character> = new Utils.AutoArray(
+  let interactorArray: Utils.AutoArray<Character, InteractorComponent> = new Utils.AutoArray(
     o => o.id,
-    o => o.components.interactor !== undefined)
+    o => Utils.Get(o, 'interactor'))
   interactorArray.watch(gameState.player)
   interactorArray.observe(gameState.crew)
 
-  let buttonArray: Utils.AutoArray<Furniture> = new Utils.AutoArray(
+  let buttonArray: Utils.AutoArray<Furniture, ButtonComponent> = new Utils.AutoArray(
     o => o.id,
-    o => o.components.button !== undefined)
+    o => o.button)
   buttonArray.observe(gameState.furnitures)
 
-  let spawnerArray: Utils.AutoArray<Furniture> = new Utils.AutoArray(
+  let spawnerArray: Utils.AutoArray<Furniture, SpawnerComponent> = new Utils.AutoArray(
     o => o.id,
-    o => o.components.spawner !== undefined)
+    o => o.spawner)
   spawnerArray.observe(gameState.furnitures)
 
   let time = 0
-
   let step = (dt) => {
     time += dt
 
     let rooms = gameState.rooms
 
     for (let character of allCharacters(gameState)) {
-      let actor = character.components.actor
-      if (actor === undefined || actor.kind !== 'actor') throw 'Wat, bad actor'
-
+      let actor: ActorComponent = character.actor
       actor.actions.clear()
     }
 
     { // player actions
       let player = gameState.player
-      let actor = player.components.actor
-      if (actor === undefined || actor.kind !== 'actor') throw 'Wat, bad actor'
+      let actor: ActorComponent = player.actor
 
       // actions: wasd
       actor.actions = thinkPlayerLocomotion(keysDown, canJump(player))
@@ -1233,11 +1226,8 @@ $(document).ready(() => {
 
     // engineer actions
     for (let character of gameState.crew) {
-      let ai = character.components.ai
-      if (ai === undefined || ai.kind !== 'ai') throw 'Wat, bad ai'
-
-      let actor = character.components.actor
-      if (actor === undefined || actor.kind !== 'actor') throw 'Wat, bad actor'
+      let ai: AIComponent = character.ai
+      let actor: ActorComponent = character.actor
 
       ai.nextThink -= dt
 
@@ -1262,15 +1252,9 @@ $(document).ready(() => {
     }
 
     // figure out if character can pick up any crew members
-    for (let character of carrierArray.all()) {
-      let carrier = character.components.carrier
-      if (carrier === undefined || carrier.kind !== 'carrier') throw 'Wat, other bad carrier'
-
-      let animation = character.components.animation
-      if (animation === undefined || animation.kind !== 'animation') throw 'Wat, bad animation'
-
-      let actor = character.components.actor
-      if (actor === undefined || actor.kind !== 'actor') throw 'Wat, bad actor'
+    for (let [character, carrier] of carrierArray.all()) {
+      let animation: CharacterAnimationComponent = character.animation
+      let actor: ActorComponent                  = character.actor
 
       // skip if there's no carrying action
       if (!actor.actions.has(ActionEnum.ACT)) continue
@@ -1282,9 +1266,6 @@ $(document).ready(() => {
       if (!isGrounded(character)) continue
 
       for (let crewMember of inDepthOrder(crewMap, depths)) {
-        if (!crewMember.components.carriable) throw 'Wat, crew members should be carriable'
-        if (crewMember.components.carriable.kind !== 'carriable') throw 'Wat, carriable is broken'
-
         let pickup = canPickup(
           character, animation.direction, isGrounded(character),
           crewMember, isGrounded(crewMember))
@@ -1300,15 +1281,9 @@ $(document).ready(() => {
     }
 
     // handle carrying & throwing
-    for (let character of carrierArray.all()) {
-      let carrier = character.components.carrier
-      if (carrier === undefined || carrier.kind !== 'carrier') throw 'Wat, most bad carrier'
-
-      let animation = character.components.animation
-      if (animation === undefined || animation.kind !== 'animation') throw 'Wat, bad animation'
-
-      let actor = character.components.actor
-      if (actor === undefined || actor.kind !== 'actor') throw 'Wat, bad actor'
+    for (let [character, carrier] of carrierArray.all()) {
+      let animation: CharacterAnimationComponent = character.animation
+      let actor: ActorComponent                  = character.actor
 
       // move carried object
       if (carrier.carrying) {
@@ -1329,26 +1304,16 @@ $(document).ready(() => {
     }
 
     // figure out if there are buttons to be pressed
-    for (let character of interactorArray.all()) {
-      let interactor = character.components.interactor
-      if (interactor === undefined || interactor.kind !== 'interactor') throw 'Wat, terrible interactor'
-
-      let animation = character.components.animation
-      if (animation === undefined || animation.kind !== 'animation') throw 'Wat, bad animation'
-
-      let actor = character.components.actor
-      if (actor === undefined || actor.kind !== 'actor') throw 'Wat, bad actor'
-
+    for (let [character, interactor] of interactorArray.all()) {
+      let animation: CharacterAnimationComponent = character.animation
+      let actor: ActorComponent                  = character.actor
       let characterDir = animation.direction
 
       // skip if there's no carrying action
       if (!actor.actions.has(ActionEnum.ACT)) continue
 
       // loop through buttons
-      for (let furniture of buttonArray.all()) {
-        let button = furniture.components.button
-        if (button === undefined || button.kind !== 'button') throw 'Wat, bad button'
-
+      for (let [furniture, button] of buttonArray.all()) {
         if (isButtonPressable(button) && canInteract(character, characterDir, {y: FURNITURE_HEIGHT, ...furniture})) {
           button.time = 0
           let buttonEvent = button.eventToFire
@@ -1358,9 +1323,8 @@ $(document).ready(() => {
           if (Utils.hasValue(SpawnEventEnum, buttonEvent)) {
             // notify other furniture
             let affectedFurniture = furnitureMap.get(buttonAffects)
-            let spawner = affectedFurniture.components.spawner
-            if (spawner === undefined || spawner.kind !== 'spawner')
-              throw 'Wat, bad spawner'
+            let spawner: ?SpawnerComponent = affectedFurniture.spawner
+            if (spawner == null) throw 'Wat, bad spawner'
 
             spawner.events.push(buttonEvent)
             spawner.time = 0
@@ -1372,10 +1336,7 @@ $(document).ready(() => {
     }
 
     // spawn characters
-    for (let furniture of spawnerArray.all()) {
-      let spawner = furniture.components.spawner
-      if (spawner === undefined || spawner.kind !== 'spawner') throw 'Wat, bad spawner'
-
+    for (let [furniture, spawner] of spawnerArray.all()) {
       while (spawner.events.length > 0) {
         let event = spawner.events.pop()
         let obj = spawner.spawn(event)
@@ -1384,26 +1345,19 @@ $(document).ready(() => {
     }
 
     // increment furniture times
-    for (let furniture of buttonArray.all()) {
-      let button = furniture.components.button
-      if (button === undefined || button.kind !== 'button') throw 'Wat, bad button'
-
+    for (let [furniture, button] of buttonArray.all()) {
       if (button.time >= 0)
         button.time += dt
     }
 
-    for (let furniture of spawnerArray.all()) {
-      let spawner = furniture.components.spawner
-      if (spawner === undefined || spawner.kind !== 'spawner') throw 'Wat, bad button'
-
+    for (let [furniture, spawner] of spawnerArray.all()) {
       if (spawner.time >= 0)
         spawner.time += dt
     }
 
     // handle character physics
     for (let character of allCharacters(gameState)) {
-      let actor = character.components.actor
-      if (actor === undefined || actor.kind !== 'actor') throw 'Wat, bad actor'
+      let actor: ActorComponent = character.actor
 
       Object.assign(character, horizontalCharacterPhysics(character, actor.actions, isGrounded(character)))
       Object.assign(character, verticalCharacterPhysics(isGrounded(character), actor.actions))
@@ -1411,9 +1365,7 @@ $(document).ready(() => {
 
     // generate list of carried characters
     let carried: Set<string> = new Set()
-    for (let character of carrierArray.all()) {
-      let carrier = character.components.carrier
-      if (carrier === undefined || carrier.kind !== 'carrier') throw 'Wat, bad carrier'
+    for (let [character, carrier] of carrierArray.all()) {
       if (carrier.carrying !== undefined) {
         carried.add(carrier.carrying)
       }
@@ -1422,8 +1374,7 @@ $(document).ready(() => {
 
     // handle animation
     for (let character of allCharacters(gameState)) {
-      let animation = character.components.animation
-      if (animation === undefined || animation.kind !== 'animation') throw 'Wat, bad animation'
+      let animation: CharacterAnimationComponent = character.animation
 
       Object.assign(
         animation,
@@ -1452,8 +1403,7 @@ $(document).ready(() => {
     // generate sprites
     let sprites: {[id: string]: Array<Sprite>} = {}
     for (let character: Character of allCharacters(gameState)) {
-      let animation = character.components.animation
-      if (animation === undefined || animation.kind !== 'animation') throw 'Wat, bad animation'
+      let animation: CharacterAnimationComponent = character.animation
 
       let dRoom = computeRoomDistance(
         character.roomIndex,
@@ -1530,7 +1480,7 @@ $(document).ready(() => {
     }
 
     Canvas.drawBuffer(screen, buffer)
-    return DT;
+    return DT
   }
 
   runLoop(step)
