@@ -31,7 +31,6 @@ import type {
   Direction,
   ImagerComponent,
   CarriableComponent,
-  Component,
   FurnitureEvent,
   InteractorComponent,
   SpawnerComponent,
@@ -1260,7 +1259,7 @@ $(document).ready(() => {
       if (!actor.actions.has(ActionEnum.ACT)) continue
 
       // shouldn't be already carrying something
-      if (carrier.carrying !== undefined) continue
+      if (carrier.carrying) continue
 
       // shouldn't be in the air
       if (!isGrounded(character)) continue
@@ -1366,7 +1365,7 @@ $(document).ready(() => {
     // generate list of carried characters
     let carried: Set<string> = new Set()
     for (let [character, carrier] of carrierArray.all()) {
-      if (carrier.carrying !== undefined) {
+      if (carrier.carrying) {
         carried.add(carrier.carrying)
       }
     }

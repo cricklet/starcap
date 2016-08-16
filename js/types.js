@@ -1,53 +1,5 @@
 /* @flow */
 
-type X = { a: number, kind: 'x' } & C
-type Y = { b: string, kind: 'y' } & C
-
-type Z = X | Y
-type C = {
-  a?: number,
-  b?: string
-}
-
-var x: X = { a: 123, kind: 'x' }
-var y: Y = { b: 'asdf', kind: 'y' }
-
-var z: Z = { a: 123, kind: 'x' }
-if (z.b) { z.b += ' qwerty' }
-
-if (x.b) { }
-
-//
-
-
-export type Foo = {
-  kind: 'foo',
-}
-
-export type Bar = {
-  kind: 'bar',
-}
-
-export type FooBar = Foo | Bar
-
-function xyz (x: FooBar) {
-  if (x.kind === 'foo') {
-    let foo: Foo = x;
-  }
-  if (x.kind === 'bar') {
-    let bar: Bar = x;
-  }
-}
-
-function xyz(character: Character) {
-  if (character.kind === 'player') {
-    let player: Player = character;
-  }
-  if (character.kind === 'crew') {
-    let crew: CrewMember = character;
-  }
-}
-
 ////////////////////////////////////////////////////////////
 // Game state types
 
@@ -246,18 +198,6 @@ export type BeamingDownComponent = {
   time: number
 }
 
-export type Component =
-  | CharacterAnimationComponent
-  | ImagerComponent
-  | CarrierComponent
-  | CarriableComponent
-  | InteractorComponent
-  | AIComponent
-  | ActorComponent
-
-////////////////////////////////////////////////////////////
-// Furniture components
-
 export let SpawnEventEnum = {
   SEC_TELEPORT: 'security teleporter',
   ENG_TELEPORT: 'engineering teleporter'
@@ -305,6 +245,7 @@ export type Action = // yeah yeah, DRY :(
   | 'act'
   | 'slow-left'
   | 'slow-right'
+
 ////////////////////////////////////////////////////////////
 // Rendering types
 
