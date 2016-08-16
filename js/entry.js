@@ -190,7 +190,6 @@ function initialGameState(): GameState {
         width: 8 * 0.12,
         height: 6 * 0.12,
         roomIndex: 0,
-        components: {}
       },
       {
         kind: 'furniture',
@@ -200,7 +199,6 @@ function initialGameState(): GameState {
         width: 8 * 0.12,
         height: 6 * 0.12,
         roomIndex: 0,
-        components: {}
       },
       {
         kind: 'furniture',
@@ -210,7 +208,6 @@ function initialGameState(): GameState {
         width: 20 * 0.12,
         height: 16 * 0.12,
         roomIndex: 0,
-        components: {}
       },
       {
         kind: 'furniture',
@@ -220,7 +217,6 @@ function initialGameState(): GameState {
         width: 24 * 0.12,
         height: 16 * 0.12,
         roomIndex: 1,
-        components: {}
       },
       {
         kind: 'furniture',
@@ -230,7 +226,6 @@ function initialGameState(): GameState {
         width: 20 * 0.12,
         height: 11 * 0.12,
         roomIndex: 1,
-        components: {}
       },
       {
         kind: 'furniture',
@@ -240,7 +235,6 @@ function initialGameState(): GameState {
         width: 6 * 0.12,
         height: 16 * 0.12,
         roomIndex: 2,
-        components: {}
       },
       {
         kind: 'furniture',
@@ -250,7 +244,6 @@ function initialGameState(): GameState {
         width: 12 * 0.12,
         height: 6 * 0.12,
         roomIndex: 2,
-        components: {}
       },
       {
         kind: 'furniture',
@@ -260,7 +253,6 @@ function initialGameState(): GameState {
         width: 6 * 0.12,
         height: 8 * 0.12,
         roomIndex: 2,
-        components: {}
       },
       {
         kind: 'furniture',
@@ -270,7 +262,6 @@ function initialGameState(): GameState {
         width: 6 * 0.12,
         height: 12 * 0.12,
         roomIndex: 2,
-        components: {}
       },
       {
         kind: 'furniture',
@@ -280,7 +271,6 @@ function initialGameState(): GameState {
         width: 6 * 0.12,
         height: 8 * 0.12,
         roomIndex: 2,
-        components: {}
       },
       {
         kind: 'furniture',
@@ -291,13 +281,11 @@ function initialGameState(): GameState {
         width: 17 * 0.12,
         height: 16 * 0.12,
         roomIndex: 3,
-        components: {
-          spawner: {
-            kind: 'spawner',
-            events: [],
-            spawn: generateSpawner(2.5, 3),
-            time: -1
-          }
+        spawner: {
+          kind: 'spawner',
+          events: [],
+          spawn: generateSpawner(2.5, 3),
+          time: -1
         }
       },
       {
@@ -308,13 +296,11 @@ function initialGameState(): GameState {
         width: 6 * 0.12,
         height: 6 * 0.12,
         roomIndex: 3,
-        components: {
-          button: {
-            kind: 'button',
-            eventToFire: SpawnEventEnum.SEC_TELEPORT,
-            time: -1,
-            notify: 'teleporter0'
-          }
+        button: {
+          kind: 'button',
+          eventToFire: SpawnEventEnum.SEC_TELEPORT,
+          time: -1,
+          notify: 'teleporter0'
         }
       },
       {
@@ -325,13 +311,11 @@ function initialGameState(): GameState {
         width: 6 * 0.12,
         height: 6 * 0.12,
         roomIndex: 3,
-        components: {
-          button: {
-            kind: 'button',
-            eventToFire: SpawnEventEnum.ENG_TELEPORT,
-            time: -1,
-            notify: 'teleporter0'
-          }
+        button: {
+          kind: 'button',
+          eventToFire: SpawnEventEnum.ENG_TELEPORT,
+          time: -1,
+          notify: 'teleporter0'
         }
       },
       {
@@ -342,7 +326,6 @@ function initialGameState(): GameState {
         width: 8 * 0.12,
         height: 6 * 0.12,
         roomIndex: 3,
-        components: {}
       }
     ],
     rooms: [
@@ -1313,6 +1296,7 @@ $(document).ready(() => {
 
       // loop through buttons
       for (let [furniture, button] of buttonArray.all()) {
+        console.log(button)
         if (isButtonPressable(button) && canInteract(character, characterDir, {y: FURNITURE_HEIGHT, ...furniture})) {
           button.time = 0
           let buttonEvent = button.eventToFire
