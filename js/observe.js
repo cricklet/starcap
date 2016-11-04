@@ -4,8 +4,12 @@ require('object.observe')
 
 type Observer = ((changes: any) => void)
 
-export function unobserveArray <O> (array: Array<O>, observer: Observer): Observer {
-  Object.unobserve(oo[0], oo[1])
+export function unobserveArray <O> (array: Array<O>, observer: Observer): void {
+  Array.unobserve(array, observer)
+}
+
+export function unobserveObject <O> (object: O, observer: Observer): void {
+  Object.unobserve(object, observer)
 }
 
 export function observeArray <O> (
@@ -51,3 +55,4 @@ export function observeObject <O> (
   Object.observe(object, observer)
   return observer
 }
+
